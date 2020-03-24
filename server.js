@@ -1,15 +1,7 @@
 const uuid = require('uuid');
 const WebSocket = require('ws');
 const sockets = {};
-// const express = require('express'),
-//   expressApp = express(),
-//   socketio = require('socket.io'),
-//   http = require('http'),
-//   server = http.createServer(expressApp),
-//   sockets = {};
 
-
-// expressApp.use(express.static(__dirname + '/pub/'));
 const MAX_CONNECTIONS = 8;
 
 exports.run = (config) => {
