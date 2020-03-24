@@ -1,0 +1,423 @@
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>cards</title>
+  <style>
+    html, body {
+      font-family: arial, sans-serif;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .table {
+      background: rgb(23,133,18);
+      background: linear-gradient(180deg, rgb(23,133,18) 0%, rgb(20,128,15) 100%);
+      position: relative;
+      text-align: center;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .surface {
+      bottom: 8em;
+      left: 7em;
+      position: absolute;
+      right: 7em;
+      top: 8em;
+    }
+
+    .surface.dropzone {
+      background: rgba(255,255,255,0.2);
+      border-radius: 2em;
+    }
+
+    .card {
+      background: #e7e7e7;
+      border-radius: .05em;
+      box-shadow: -1px 1px 1px rgba(0,0,0,0.1);
+      color: black;
+      display: inline-block;
+      font-size: 5rem;
+      line-height: .9;
+      position: relative;
+      padding-bottom: .04em;
+    }
+
+    .red {
+      color: #c00;
+    }
+
+    .stretchy-hack {
+      display: inline-block;
+      height: 100%;
+    }
+
+    .hand {
+      display: inline-block;
+      position: relative;
+      vertical-align: bottom;
+    }
+
+    .hand .card {
+      font-size: 6em;
+      margin: 2px;
+    }
+
+    .hand .name {
+      bottom: 7.6em;
+      color: #84af82;
+      font-size: .8em;
+      position: absolute;
+      width: 100%;
+    }
+
+    .sort-indicator {
+      background: yellow;
+      bottom: -2em;
+      display: none;
+      height: 8em;
+      margin: 2px;
+      position: relative;
+      width: 8px;
+    }
+
+    .dropzone .sort-indicator {
+      display: inline-block;
+    }
+
+    .card-closed {
+      background: #99e;
+      color: blue;
+    }
+
+    .selected {
+      background: #fff;
+      border: .025em;
+      bottom: .25em;
+      position: relative;
+    }
+
+    .opponent {
+      box-sizing: border-box;
+      font-size: .8em;
+      padding-right: .55em;
+      position: absolute;
+      text-align: center;
+    }
+
+    .opponent.p0 {
+      left: .25em;
+      top: 50%;
+      transform: translateX(-90%) rotate(-90deg) translateY(50%);
+    }
+
+    .opponent.p1 {
+      left: 50%;
+      top: .25em;
+      transform: translate(-50%, -40%);
+    }
+
+    .opponent.p2 {
+      right: .25em;
+      top: 50%;
+      transform: translateX(90%) rotate(90deg) translateY(50%);
+    }
+
+    .opponent.p3 {
+      left: 50%;
+      bottom: .25em;
+      transform: translate(-50%, 40%) rotate(180deg);
+    }
+
+    .opponent .card {
+      margin: 0 -.295em;
+    }
+
+    .opponent .name {
+      bottom: -1.5em;
+      color: #84af82;
+      left: 50%;
+      min-width: 10em;
+      position: absolute;
+      transform: translateX(-50%);
+    }
+
+    .turn {
+      position: absolute;
+    }
+
+    .turn.p0 {
+      left: 50%;
+      top: 40%;
+      transform: translateX(-50%) rotate(-90deg) translateY(-70%);
+    }
+
+    .turn.p1 {
+      left: 50%;
+      top: 40%;
+      transform: translate(-50%, -80%) rotate(180deg);
+    }
+
+    .turn.p2 {
+      right: 50%;
+      top: 40%;
+      transform: translateX(50%) rotate(90deg) translateY(-70%);
+    }
+
+    .turn.p3 {
+      left: 50%;
+      top: 40%;
+      transform: translate(-50%, 80%);
+    }
+
+    .turn .card {
+      background: #bbb;
+      font-size: 6em;
+      margin: 0 -.2em;
+    }
+
+    .turn:last-child .card {
+      background: #e7e7e7;
+    }
+
+    .move {
+      box-shadow: 20px 20px 30px rgba(0,0,0,0.2);
+      left: 0;
+      padding: 0 1em;
+      position: absolute;
+      top: 0;
+    }
+
+    .move .card {
+      font-size: 6em;
+      margin: 0 -.23em;
+    }
+
+    .message {
+      background: rgba(180,180,180,.6);
+      color: white;
+      display: inline-block;
+      font-size: 1rem;
+      left: 50%;
+      padding: 50%;
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+    }
+
+    .connected .message {
+      display: none;
+    }
+
+    .dialog {
+      background: rgb(192,192,192);
+      border-top: 2px solid rgb(239,239,239);
+      border-left: 2px solid rgb(239,239,239);
+      border-bottom: 2px solid rgb(96,96,96);
+      border-right: 2px solid rgb(96,96,96);
+      color: #222;
+      display: block;
+      font-size: 14px;
+      left: 50%;
+      position: absolute;
+      padding-top: 26px;
+      top: 50%;
+      z-index: 9;
+      transform: translate(-50%, -50%);
+      text-align: right;
+    }
+
+    .dialog::before {
+      content: '';
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 22px;
+      line-height: 22px;
+      font-size: 12px;
+      text-align: left;
+      padding-left: 5px;
+      color: white;
+      background: rgb(2,12,126);
+    }
+
+    .dialog-button {
+      background: rgb(192,192,192);
+      border-top: 2px solid rgb(239,239,239);
+      border-left: 2px solid rgb(239,239,239);
+      border-bottom: 2px solid rgb(96,96,96);
+      border-right: 2px solid rgb(96,96,96);
+      color: #222;
+      display: inline-block;
+      padding: .25em .5em;
+      margin: .5em;
+      line-height: 1;
+      box-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+    }
+    .dialog-button:hover {
+      background: rgb(219, 219, 219);
+    }
+    .dialog-button:active {
+      background: rgb(140, 140, 140);
+      border-bottom: 2px solid rgb(239,239,239);
+      border-right: 2px solid rgb(239,239,239);
+      border-top: 2px solid rgb(96,96,96);
+      border-left: 2px solid rgb(96,96,96);
+    }
+
+    .welcome, .started.connected .welcome {
+      display: none;
+    }
+
+    .connected .welcome {
+      display: block;
+    }
+
+    .welcome::before {
+      content: 'Enter name plz';
+    }
+
+    .welcome input {
+      background: #eee;
+      border-bottom: 2px solid rgb(239,239,239);
+      border-right: 2px solid rgb(239,239,239);
+      border-top: 2px solid rgb(96,96,96);
+      border-left: 2px solid rgb(96,96,96);
+      color: #222;
+      padding: .25em .5em;
+      margin: .5em;
+      font-size: 1em;
+      width: 10em;
+      text-align: left;
+      display: inline-block;
+    }
+    input:focus {
+      outline: none;
+    }
+
+    .lurk-central {
+      color: #84af82;
+      display: none;
+      font-size: .8em;
+      position: absolute;
+      right: .25em;
+      text-align: right;
+      top: .25em;
+    }
+
+    .lurk-central::before {
+      border-bottom: 1px solid #84af82;
+      content: 'lurks';
+      display: block;
+      margin-bottom: .3em;
+      text-align: right;
+    }
+
+    .lurk-central.active {
+      display: block;
+    }
+
+    .controls-central {
+      display: none;
+      font-size: .8em;
+      position: absolute;
+      left: .25em;
+      text-align: left;
+      top: .25em;
+    }
+
+    .connected.started .controls-central {
+      display: block;
+    }
+
+    .controls-central::before {
+      color: #84af82;
+      border-bottom: 1px solid #84af82;
+      content: 'menu';
+      display: block;
+      margin-bottom: .3em;
+      text-align: left;
+    }
+
+    .deal-menu::before {
+      content: 'Start a new game?';
+    }
+
+    .button {
+      color: #ccc;
+      padding: .25em 0;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .button:hover {
+      color: #fff;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .disabled, .disabled:hover {
+      color: #84af82;
+      cursor: default;
+      font-weight: normal;
+    }
+
+  </style>
+</head>
+<body class="table">
+  <div class="stretchy-hack"></div>
+  <div class="message">shit's fucked.</div>
+  <div class="welcome dialog">
+    <input class="name-input" onkeyup="initialize(event)"/><br/>
+    <div class="dialog-button" onclick="initialize()">Start</div>
+  </div>
+</body>
+<script src="game.js"></script>
+<script>
+  console.log('you can cheat if you wanna.');
+  var HOST = location.origin.replace(/^http/, 'ws');
+  const socket = new WebSocket(HOST);
+  const table = document.body;
+  const game = new Game(table);
+
+  socket.addEventListener('open', (event) => {
+    game.setServer(socket);
+    table.classList.add('connected');
+    document.querySelector('.name-input').focus();
+  });
+
+  socket.addEventListener('message', (event) => {
+    console.log(event);
+    if (event.data === 'init') {
+      table.classList.add('started');
+    }
+  });
+  socket.addEventListener('close', (event) => {
+    console.log('close', event);
+    table.classList.remove('connected');
+  });
+
+  socket.addEventListener('error', (event) => {
+    console.log('error', event);
+  });
+
+  function initialize(event) {
+    if (event && (event.key != 'Enter' || event.code != 'Enter')) {
+      return;
+    }
+    const name = document.querySelector('.name-input').value;
+    if (!name) {
+      return;
+    }
+    socket.send(JSON.stringify({type: 'init', data: name}));
+  }
+</script>
+</html>

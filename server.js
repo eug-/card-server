@@ -1,90 +1,17 @@
 const uuid = require('uuid');
+const express = require('express');
 const WebSocket = require('ws');
-const sockets = {};
 
 const MAX_CONNECTIONS = 8;
+const PORT = process.env.PORT || 5555;
+const sockets = {};
+const server = express()
+  .use(express.static(__dirname + '/pub/'))
+  .listen(PORT, () => console.log(`Listening on ${PORT}`));
 
-exports.run = (config) => {
-  console.log('strating service with', config);
-  const wss = new WebSocket.Server({
-    port: config.PORT,
-    perMessageDeflate: {
-      zlibDeflateOptions: {
-        // See zlib defaults.
-        chunkSize: 1024,
-        memLevel: 7,
-        level: 3
-      },
-      zlibInflateOptions: {
-        chunkSize: 10 * 1024
-      },
-      // Other options settable:
-      clientNoContextTakeover: true, // Defaults to negotiated value.
-      serverNoContextTakeover: true, // Defaults to negotiated value.
-      serverMaxWindowBits: 10, // Defaults to negotiated value.
-      // Below options specified as default values.
-      concurrencyLimit: 10, // Limits zlib concurrency for perf.
-      threshold: 1024 // Size (in bytes) below which messages
-      // should not be compressed.
-    }
-  });
-
-  const game = new Game(wss);
-
-  wss.on('connection', (socket) => {
-    if (Object.keys(sockets)
-      .length >= MAX_CONNECTIONS) {
-      socket.terminate();
-      return;
-    }
-
-    socket.id = uuid.v4();
-    console.log('connected', socket.id);
-    // Track current connections.
-    sockets[socket.id] = socket;
-
-    socket.on('message', (data) => {
-      let message;
-      try {
-        message = JSON.parse(data);
-      } catch (e) {
-        // Bad message syntax
-        return;
-      }
-
-      console.log('message received', socket.id, message);
-      switch (message.type) {
-        case 'init':
-          const player = new Player(message.data, socket.id);
-          game.addPlayer(player);
-          socket.send('init');
-          return;
-        case 'deal':
-          game.deal(message.data);
-          return;
-        case 'turn':
-          game.takeTurn(socket.id, message.data);
-          return;
-        case 'undo':
-          game.undo(socket.id);
-          return;
-        case 'newround':
-          game.newRound();
-          return;
-      }
-    });
-
-    socket.on('error', (error) => {
-      console.log('error', error);
-    });
-
-    socket.on('close', (data) => {
-      console.log('disconnecting');
-      delete sockets[socket.id];
-      game.removePlayerById(socket.id);
-    });
-  });
-}
+const wss = new WebSocket.Server({
+  server
+});
 
 class Game {
   constructor() {
@@ -307,3 +234,59 @@ function shuffle(array) {
   }
   return array;
 }
+
+
+const game = new Game(wss);
+wss.on('connection', (socket) => {
+  if (Object.keys(sockets)
+    .length >= MAX_CONNECTIONS) {
+    socket.terminate();
+    return;
+  }
+
+  socket.id = uuid.v4();
+  console.log('connected', socket.id);
+  // Track current connections.
+  sockets[socket.id] = socket;
+
+  socket.on('message', (data) => {
+    let message;
+    try {
+      message = JSON.parse(data);
+    } catch (e) {
+      // Bad message syntax
+      return;
+    }
+
+    console.log('message received', socket.id, message);
+    switch (message.type) {
+      case 'init':
+        const player = new Player(message.data, socket.id);
+        game.addPlayer(player);
+        socket.send('init');
+        return;
+      case 'deal':
+        game.deal(message.data);
+        return;
+      case 'turn':
+        game.takeTurn(socket.id, message.data);
+        return;
+      case 'undo':
+        game.undo(socket.id);
+        return;
+      case 'newround':
+        game.newRound();
+        return;
+    }
+  });
+
+  socket.on('error', (error) => {
+    console.log('error', error);
+  });
+
+  socket.on('close', (data) => {
+    console.log('disconnecting');
+    delete sockets[socket.id];
+    game.removePlayerById(socket.id);
+  });
+});
