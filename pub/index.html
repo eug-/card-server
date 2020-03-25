@@ -387,11 +387,16 @@
   const socket = new WebSocket(HOST);
   const table = document.body;
   const game = new Game(table);
+  let heartbeat;
 
   socket.addEventListener('open', (event) => {
     game.setServer(socket);
     table.classList.add('connected');
     document.querySelector('.name-input').focus();
+    heartbeat = setInterval(() => {
+      // Heroku requires a ping < every 55sec to keep a connection open.
+      socket.send('hb');
+    }, 45 * 1000);
   });
 
   socket.addEventListener('message', (event) => {
@@ -403,6 +408,7 @@
   socket.addEventListener('close', (event) => {
     console.log('close', event);
     table.classList.remove('connected');
+    clearInterval(heartbeat);
   });
 
   socket.addEventListener('error', (event) => {

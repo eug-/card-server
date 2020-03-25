@@ -250,6 +250,11 @@ wss.on('connection', (socket) => {
   sockets[socket.id] = socket;
 
   socket.on('message', (data) => {
+    if (data === 'hb') {
+      // Ignore heartbeat ping.
+      return;
+    }
+
     let message;
     try {
       message = JSON.parse(data);

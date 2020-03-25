@@ -263,6 +263,12 @@ class Menu {
         dealMenu.classList.add('hidden');
       });
 
+      const clearButton = createElement('button', element);
+      clearButton.innerText = 'clear table';
+      clearButton.addEventListener('click', () => {
+        element.dispatchEvent(new Event('newround'));
+      });
+
       const dealButton = createElement('button', element);
       dealButton.innerText = 'deal';
       dealButton.addEventListener('click', () => {
@@ -276,12 +282,6 @@ class Menu {
           return;
         }
         element.dispatchEvent(new Event('undo'));
-      });
-
-      const clearButton = createElement('button', element);
-      clearButton.innerText = 'clear table';
-      clearButton.addEventListener('click', () => {
-        element.dispatchEvent(new Event('newround'));
       });
 
       this.element = element;
