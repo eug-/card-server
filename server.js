@@ -51,6 +51,15 @@ class Game {
     this.sendUpdate();
   }
 
+  rearrange(playerId, cards) {
+    const player = this.players[playerId];
+    if (!player || this.playerIds.indexOf(playerId) >= this.MAX_ACTIVE_PLAYERS) {
+      return;
+    }
+    player.rearrange(cards);
+    this.sendUpdate(playerId);
+  }
+
   newRound() {
     if (this.round.length < 1) {
       return;
@@ -110,10 +119,13 @@ class Game {
     this.sendUpdate();
   }
 
-  sendUpdate() {
+  sendUpdate(playerId) {
     const playerCount = Math.min(this.MAX_ACTIVE_PLAYERS, this.playerIds.length);
     let c = 0;
     for (const socketId in sockets) {
+      if (playerId && playerId !== socketId) {
+        continue;
+      }
       const socket = sockets[socketId];
       const update = {
         opponents: [],
@@ -204,6 +216,18 @@ class Player {
     return played;
   }
 
+  rearrange(cards = []) {
+    if (cards.length !== this.hand.length) {
+      return;
+    }
+    for (const card of cards) {
+      if (this.hand.indexOf(card) < 0) {
+        return;
+      }
+    }
+    this.hand = cards;
+  }
+
   getPayload() {
     return {
       name: this.name,
@@ -276,6 +300,8 @@ wss.on('connection', (socket) => {
       case 'turn':
         game.takeTurn(socket.id, message.data);
         return;
+      case 'rearrange':
+        game.rearrange(socket.id, message.data);
       case 'undo':
         game.undo(socket.id);
         return;

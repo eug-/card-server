@@ -400,13 +400,11 @@
   });
 
   socket.addEventListener('message', (event) => {
-    console.log(event);
     if (event.data === 'init') {
       table.classList.add('started');
     }
   });
   socket.addEventListener('close', (event) => {
-    console.log('close', event);
     table.classList.remove('connected');
     clearInterval(heartbeat);
   });

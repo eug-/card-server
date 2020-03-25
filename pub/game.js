@@ -84,6 +84,16 @@ class Game {
       this.startDrag(event.detail);
     });
 
+    hand.addEventListener('rearrange', (event) => {
+      if (!this.server) {
+        return;
+      }
+      this.server.send(JSON.stringify({
+        type: 'rearrange',
+        data: event.detail.map(card => card.value),
+      }));
+    });
+
     menu.addEventListener('undo', () => {
       if (!this.server) {
         return;
@@ -117,7 +127,6 @@ class Game {
     this.server = server;
     server.addEventListener('message', (event) => {
       let update;
-      console.log('game message received', event.data);
       try {
         const data = JSON.parse(event.data);
         update = data.data;
@@ -306,7 +315,6 @@ class Surface {
       const element = createElement('surface');
       element.addEventListener('drop', (event) => {
         const cards = [];
-        console.log('surface drop', event);
       });
       this.element = element;
     }
@@ -585,7 +593,10 @@ class Hand {
     } else {
       newOrder.push(...grouping);
     }
-    this.setCards(newOrder);
+    this.getElement()
+      .dispatchEvent(new CustomEvent('rearrange', {
+        detail: newOrder
+      }));
   }
 
   createDrag(dragEvent) {
