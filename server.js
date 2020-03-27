@@ -208,11 +208,24 @@ class Player {
     const played = [];
     for (const card of cards) {
       const handIndex = this.hand.indexOf(card);
-      if (handIndex >= 0) {
+      if (handIndex >= 0 && played.indexOf(card) < 0) {
         this.hand.splice(handIndex, 1);
         played.push(card);
       }
     }
+    played.sort((first, second) => {
+      // Get values, adjusted for weight in the game `13`
+      const firstValue = (Number(first.substring(1)) + 10) % 13;
+      const secondValue = (Number(second.substring(1)) + 10) % 13;
+      if (firstValue !== secondValue) {
+        return firstValue - secondValue;
+      }
+      // If the values are equal, compare the suits.
+      if (first[0] === second[0]) {
+        return 0;
+      }
+      return first[0] > second[0] ? 1 : -1;
+    });
     return played;
   }
 
@@ -220,10 +233,12 @@ class Player {
     if (cards.length !== this.hand.length) {
       return;
     }
+    const newHand = [];
     for (const card of cards) {
-      if (this.hand.indexOf(card) < 0) {
+      if (this.hand.indexOf(card) < 0 || newHand.indexOf(card) >= 0) {
         return;
       }
+      newHand.push(card);
     }
     this.hand = cards;
   }
@@ -274,11 +289,6 @@ wss.on('connection', (socket) => {
   sockets[socket.id] = socket;
 
   socket.on('message', (data) => {
-    if (data === 'hb') {
-      // Ignore heartbeat ping.
-      return;
-    }
-
     let message;
     try {
       message = JSON.parse(data);
@@ -287,25 +297,35 @@ wss.on('connection', (socket) => {
       return;
     }
 
-    console.log('message received', socket.id, message);
     switch (message.type) {
+      case 'hb':
+        socket.send(JSON.stringify({
+          type: 'hb',
+          data: new Date(),
+        }));
+        return;
       case 'init':
+        console.log('message received', socket.id, message);
         const player = new Player(message.data, socket.id);
         game.addPlayer(player);
         socket.send('init');
         return;
       case 'deal':
+        console.log('message received', socket.id, message);
         game.deal(message.data);
         return;
       case 'turn':
+        console.log('message received', socket.id, message);
         game.takeTurn(socket.id, message.data);
         return;
       case 'rearrange':
         game.rearrange(socket.id, message.data);
       case 'undo':
+        console.log('message received', socket.id, message);
         game.undo(socket.id);
         return;
       case 'newround':
+        console.log('message received', socket.id, message);
         game.newRound();
         return;
     }

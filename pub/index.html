@@ -395,8 +395,8 @@
     document.querySelector('.name-input').focus();
     heartbeat = setInterval(() => {
       // Heroku requires a ping < every 55sec to keep a connection open.
-      socket.send('hb');
-    }, 45 * 1000);
+      socket.send(JSON.stringify({type: 'hb', data: new Date()}));
+    }, 15 * 1000);
   });
 
   socket.addEventListener('message', (event) => {
