@@ -320,6 +320,7 @@ wss.on('connection', (socket) => {
         return;
       case 'rearrange':
         game.rearrange(socket.id, message.data);
+        return;
       case 'undo':
         console.log('message received', socket.id, message);
         game.undo(socket.id);
