@@ -387,12 +387,13 @@
   const socket = new WebSocket(HOST);
   const table = document.body;
   const game = new Game(table);
-  let heartbeat;
+  let heartbeat = 0;
 
   socket.addEventListener('open', (event) => {
     game.setServer(socket);
     table.classList.add('connected');
     document.querySelector('.name-input').focus();
+    clearInterval(heartbeat);
     heartbeat = setInterval(() => {
       // Heroku requires a ping < every 55sec to keep a connection open.
       socket.send(JSON.stringify({type: 'hb', data: new Date()}));
