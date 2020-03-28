@@ -171,7 +171,6 @@ class Game {
       const isActivePlayer = socketIndex < this.MAX_ACTIVE_PLAYERS;
       const socketPosition = socketIndex % this.MAX_ACTIVE_PLAYERS;
       for (let i = 0; i < playerCount; i++) {
-        console.log('updating', i, playerCount);
         const id = this.playerIds[i];
         if (i === socketPosition && isActivePlayer) {
           update.player = this.players[id].getPayload();
@@ -185,7 +184,6 @@ class Game {
         }
       }
       for (let i = playerCount; i < this.playerIds.length; i++) {
-        console.log('updating lurks', i);
         update.lurkers.push(this.players[this.playerIds[i]].name);
       }
       for (const turn of this.round) {
@@ -194,7 +192,6 @@ class Game {
           position: playerPositions[turn.playerId],
         });
       }
-      console.log('update', update);
       socket.send(JSON.stringify({
         type: 'update',
         data: update
@@ -353,6 +350,7 @@ wss.on('connection', (socket) => {
         game.takeTurn(socket.id, message.data);
         return;
       case 'rearrange':
+        console.log('message received', socket.id, message.type);
         game.rearrange(socket.id, message.data);
         return;
       case 'undo':
