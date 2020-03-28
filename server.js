@@ -101,7 +101,36 @@ class Game {
     this.graveyard = [];
     const playerCount = Math.min(this.MAX_ACTIVE_PLAYERS, this.playerIds.length);
     for (let i = 0; i < playerCount; i++) {
-      this.players[this.playerIds[i]].setHand(this.deck.draw(count));
+      const player = this.players[this.playerIds[i]];
+      if (player.name == 'birthday boy') {
+        return this.easterDeal(player.id, count);
+      }
+      player.setHand(this.deck.draw(count));
+    }
+    this.sendUpdate();
+  }
+
+  easterDeal(luckyDog, count) {
+    this.deck = new Deck();
+    const easterHands = [
+      ['C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C10', 'C11', 'C12', 'C13', 'C1', 'C2'],
+      ['C3', 'H3', 'S3', 'D13', 'H13', 'S13', 'D1', 'H1', 'S1', 'C2', 'D2', 'H2', 'S2'],
+      ['C3', 'C13', 'D13', 'H13', 'S13', 'C1', 'D1', 'H1', 'S1', 'C2', 'D2', 'H2', 'S2'],
+      ['C3', 'C4', 'D4', 'H4', 'S4', 'S6', 'S7', 'S8', 'S9', 'C2', 'D2', 'H2', 'S2'],
+    ];
+    const easterHand = easterHands[Math.floor(Math.random() * easterHands.length)];
+    this.players[luckyDog].setHand(easterHand);
+    for (const card of easterHand) {
+      this.deck.cards.splice(this.deck.cards.indexOf(card), 1);
+    }
+    const playerCount = Math.min(this.MAX_ACTIVE_PLAYERS, this.playerIds.length);
+    for (let i = 0; i < playerCount; i++) {
+      const playerId = this.playerIds[i];
+      if (playerId === luckyDog) {
+        continue;
+      }
+      const player = this.players[playerId];
+      player.setHand(this.deck.draw(count));
     }
     this.sendUpdate();
   }
@@ -138,10 +167,13 @@ class Game {
       };
 
       const playerPositions = {};
-      const socketPosition = this.playerIds.indexOf(socket.id) % this.MAX_ACTIVE_PLAYERS;
+      const socketIndex = this.playerIds.indexOf(socket.id);
+      const isActivePlayer = socketIndex < this.MAX_ACTIVE_PLAYERS;
+      const socketPosition = socketIndex % this.MAX_ACTIVE_PLAYERS;
       for (let i = 0; i < playerCount; i++) {
+        console.log('updating', i, playerCount);
         const id = this.playerIds[i];
-        if (i === socketPosition) {
+        if (i === socketPosition && isActivePlayer) {
           update.player = this.players[id].getPayload();
           playerPositions[id] = this.MAX_ACTIVE_PLAYERS - 1;
         } else {
@@ -153,6 +185,7 @@ class Game {
         }
       }
       for (let i = playerCount; i < this.playerIds.length; i++) {
+        console.log('updating lurks', i);
         update.lurkers.push(this.players[this.playerIds[i]].name);
       }
       for (const turn of this.round) {
@@ -161,6 +194,7 @@ class Game {
           position: playerPositions[turn.playerId],
         });
       }
+      console.log('update', update);
       socket.send(JSON.stringify({
         type: 'update',
         data: update
