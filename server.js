@@ -3,7 +3,14 @@ const express = require('express');
 const WebSocket = require('ws');
 
 const MAX_CONNECTIONS = 8;
+const MAX_ACTIVE_PLAYERS = 4;
 const PORT = process.env.PORT || 5555;
+const EASTER_NAMES = {
+  'lucky dog': 1,
+  'its my birthday': 1,
+  'it\'s my birthday': 1,
+};
+
 const sockets = {};
 const server = express()
   .use(express.static(__dirname + '/pub/'))
@@ -13,37 +20,35 @@ const wss = new WebSocket.Server({
   server
 });
 
+
 class Game {
   constructor() {
     this.players = {};
     // List of player ids in join order.
-    this.playerIds = [];
-    this.MAX_ACTIVE_PLAYERS = 4;
+    this.activePlayers = [];
+    this.lurkers = [];
     this.round = [];
     this.graveyard = [];
-    this.abandonedHands = [];
-    this.abandonedIds = [];
+    this.started = false;
+  }
+
+  isActivePlayer(playerId) {
+    return this.activePlayers.indexOf(playerId) >= 0;
   }
 
   addPlayer(player) {
-    this.playerIds.push(player.id);
     this.players[player.id] = player;
-    if (this.abandonedHands.length) {
-      player.hand = this.abandonedHands.pop();
-      const abandonedId = this.abandonedIds.pop();
-      for (const turn of this.round) {
-        if (turn.playerId === abandonedId) {
-          turn.playerId = player.id;
-        }
-      }
+    if (this.activePlayers.length < MAX_ACTIVE_PLAYERS && !this.started) {
+      this.activePlayers.push(player.id);
+    } else {
+      this.lurkers.push(player.id);
     }
-
     this.sendUpdate();
   }
 
   takeTurn(playerId, cards) {
     const player = this.players[playerId];
-    if (!player || this.playerIds.indexOf(playerId) >= this.MAX_ACTIVE_PLAYERS) {
+    if (!player || !this.isActivePlayer(playerId)) {
       return;
     }
     const playableCards = player.playCards(cards);
@@ -53,7 +58,7 @@ class Game {
 
   rearrange(playerId, cards) {
     const player = this.players[playerId];
-    if (!player || this.playerIds.indexOf(playerId) >= this.MAX_ACTIVE_PLAYERS) {
+    if (!player) {
       return;
     }
     player.rearrange(cards);
@@ -69,41 +74,91 @@ class Game {
     this.sendUpdate();
   }
 
-  removePlayerById(playerId) {
-    let hand = [];
-    if (this.players[playerId]) {
-      hand = this.players[playerId].hand;
+  sit(playerId, abandonedId) {
+    const player = this.players[playerId];
+    if (!player || this.isActivePlayer(playerId)) {
+      console.log(`${playerId} is trying to sit, but ${!player ? 'doesnt exist' : 'is already playing'}`);
+      return;
     }
-    delete this.players[playerId];
-    const index = this.playerIds.indexOf(playerId);
-    if (index >= 0) {
-      this.playerIds.splice(index, 1);
+
+    if (!abandonedId) {
+      // Try to join the game, if there's room.
+      if (this.activePlayers.length < MAX_ACTIVE_PLAYERS) {
+        this.activePlayers.push(playerId);
+        const lurkIndex = this.lurkers.indexOf(playerId);
+        if (lurkIndex >= 0) {
+          this.lurkers.splice(lurkIndex, 1);
+        }
+        this.sendUpdate();
+      }
+      return;
     }
-    if (this.playerIds.length >= this.MAX_ACTIVE_PLAYERS) {
-      // Newly joining player gets quitters hand
-      const replacementPlayerId = this.playerIds[this.MAX_ACTIVE_PLAYERS - 1];
-      this.players[replacementPlayerId].hand = hand;
-      for (const turn of this.round) {
-        if (turn.playerId === playerId) {
-          turn.playerId = replacementPlayerId;
+
+    const abandonedPlayer = this.players[abandonedId];
+    const abandonedIndex = this.activePlayers.indexOf(abandonedId);
+    if (!abandonedPlayer || !abandonedPlayer.abandoned || abandonedIndex < 0) {
+      console.log(`${playerId} is trying to sit in a weird spot (${abandonedId}).`);
+      return;
+    }
+
+    // Take things over from the abandoned spot.
+    this.players[playerId].setHand(abandonedPlayer.hand);
+    const rounds = [this.round, ...this.graveyard];
+    for (const round of rounds) {
+      for (const turn of round) {
+        if (turn.playerId === abandonedId) {
+          turn.playerId = playerId;
         }
       }
-    } else {
-      this.abandonedIds.push(playerId);
-      this.abandonedHands.push(hand);
+    }
+    this.activePlayers.splice(abandonedIndex, 1, playerId);
+    this.removePlayerById(abandonedId);
+    const lurkIndex = this.lurkers.indexOf(playerId);
+    if (lurkIndex >= 0) {
+      this.lurkers.splice(lurkIndex, 1);
     }
     this.sendUpdate();
   }
 
+  abandon(playerId) {
+    const player = this.players[playerId];
+    if (!player) {
+      return;
+    }
+    if (this.isActivePlayer(playerId)) {
+      player.abandon();
+    } else {
+      this.removePlayerById(playerId);
+    }
+    this.sendUpdate();
+  }
+
+  removePlayerById(playerId) {
+    console.log(`Removing player: ${playerId}`);
+    delete this.players[playerId];
+    const index = this.lurkers.indexOf(playerId);
+    if (index >= 0) {
+      this.lurkers.splice(index, 1);
+    } else if (this.isActivePlayer(playerId)) {
+      this.activePlayers.splice(this.activePlayers.indexOf(playerId), 1);
+    }
+  }
+
   deal(count) {
+    this.started = true;
     this.deck = new Deck();
     this.round = [];
     this.graveyard = [];
-    const playerCount = Math.min(this.MAX_ACTIVE_PLAYERS, this.playerIds.length);
-    for (let i = 0; i < playerCount; i++) {
-      const player = this.players[this.playerIds[i]];
-      if (player.name == 'birthday boy') {
-        return this.easterDeal(player.id, count);
+    for (const playerId of this.activePlayers) {
+      const player = this.players[playerId];
+      if (player.abandoned) {
+        this.removePlayerById(playerId);
+        this.deal(count);
+        return;
+      }
+      if (count === 13 && player.name in EASTER_NAMES) {
+        this.easterDeal(player.id, count);
+        return;
       }
       player.setHand(this.deck.draw(count));
     }
@@ -123,9 +178,8 @@ class Game {
     for (const card of easterHand) {
       this.deck.cards.splice(this.deck.cards.indexOf(card), 1);
     }
-    const playerCount = Math.min(this.MAX_ACTIVE_PLAYERS, this.playerIds.length);
-    for (let i = 0; i < playerCount; i++) {
-      const playerId = this.playerIds[i];
+    for (let i = 0; i < this.activePlayers.length; i++) {
+      const playerId = this.activePlayers[i];
       if (playerId === luckyDog) {
         continue;
       }
@@ -149,7 +203,6 @@ class Game {
   }
 
   sendUpdate(playerId) {
-    const playerCount = Math.min(this.MAX_ACTIVE_PLAYERS, this.playerIds.length);
     let c = 0;
     for (const socketId in sockets) {
       if (playerId && playerId !== socketId) {
@@ -167,24 +220,22 @@ class Game {
       };
 
       const playerPositions = {};
-      const socketIndex = this.playerIds.indexOf(socket.id);
-      const isActivePlayer = socketIndex < this.MAX_ACTIVE_PLAYERS;
-      const socketPosition = socketIndex % this.MAX_ACTIVE_PLAYERS;
-      for (let i = 0; i < playerCount; i++) {
-        const id = this.playerIds[i];
-        if (i === socketPosition && isActivePlayer) {
+      const playerIndex = this.activePlayers.indexOf(socket.id);
+      for (let i = 0; i < this.activePlayers.length; i++) {
+        const id = this.activePlayers[i];
+        if (i === playerIndex) {
           update.player = this.players[id].getPayload();
-          playerPositions[id] = this.MAX_ACTIVE_PLAYERS - 1;
+          playerPositions[id] = MAX_ACTIVE_PLAYERS - 1;
         } else {
           // Keep the same order of players, but vary the orientation to match
           // player's origin.
-          const position = (this.MAX_ACTIVE_PLAYERS + (i - socketPosition - 1)) % this.MAX_ACTIVE_PLAYERS;
+          const position = (MAX_ACTIVE_PLAYERS + (i - playerIndex - 1)) % MAX_ACTIVE_PLAYERS;
           playerPositions[id] = position;
           update.opponents.push(this.players[id].getOpponentPayload(position));
         }
       }
-      for (let i = playerCount; i < this.playerIds.length; i++) {
-        update.lurkers.push(this.players[this.playerIds[i]].name);
+      for (let i = 0; i < this.lurkers.length; i++) {
+        update.lurkers.push(this.players[this.lurkers[i]].name);
       }
       for (const turn of this.round) {
         update.round.push({
@@ -231,6 +282,10 @@ class Player {
     this.hand = [];
   }
 
+  abandon() {
+    this.abandoned = true;
+  }
+
   setHand(cards = []) {
     this.hand = cards;
   }
@@ -244,19 +299,20 @@ class Player {
         played.push(card);
       }
     }
-    played.sort((first, second) => {
-      // Get values, adjusted for weight in the game `13`
-      const firstValue = (Number(first.substring(1)) + 10) % 13;
-      const secondValue = (Number(second.substring(1)) + 10) % 13;
-      if (firstValue !== secondValue) {
-        return firstValue - secondValue;
-      }
-      // If the values are equal, compare the suits.
-      if (first[0] === second[0]) {
-        return 0;
-      }
-      return first[0] > second[0] ? 1 : -1;
-    });
+    // Play em as they lay
+    // played.sort((first, second) => {
+    //   // Get values, adjusted for weight in the game `13`
+    //   const firstValue = (Number(first.substring(1)) + 10) % 13;
+    //   const secondValue = (Number(second.substring(1)) + 10) % 13;
+    //   if (firstValue !== secondValue) {
+    //     return firstValue - secondValue;
+    //   }
+    //   // If the values are equal, compare the suits.
+    //   if (first[0] === second[0]) {
+    //     return 0;
+    //   }
+    //   return first[0] > second[0] ? 1 : -1;
+    // });
     return played;
   }
 
@@ -277,16 +333,20 @@ class Player {
   getPayload() {
     return {
       name: this.name,
-      hand: this.hand
+      hand: this.hand,
     };
   }
 
   getOpponentPayload(position) {
-    return {
+    const payload = {
       name: this.name,
       cardCount: this.hand.length,
       position,
+    };
+    if (this.abandoned) {
+      payload.id = this.id;
     }
+    return payload;
   }
 }
 
@@ -338,8 +398,12 @@ wss.on('connection', (socket) => {
       case 'init':
         console.log('message received', socket.id, message);
         const player = new Player(message.data, socket.id);
-        game.addPlayer(player);
         socket.send('init');
+        game.addPlayer(player);
+        return;
+      case 'sit':
+        console.log('message received', socket.id, message);
+        game.sit(socket.id, message.data);
         return;
       case 'deal':
         console.log('message received', socket.id, message);
@@ -365,12 +429,12 @@ wss.on('connection', (socket) => {
   });
 
   socket.on('error', (error) => {
-    console.log('error', error);
+    console.log(`error ${socket.id}: `, error);
   });
 
   socket.on('close', (data) => {
-    console.log('disconnecting');
+    console.log(`disconnecting ${socket.id}`, data);
     delete sockets[socket.id];
-    game.removePlayerById(socket.id);
+    game.abandon(socket.id);
   });
 });

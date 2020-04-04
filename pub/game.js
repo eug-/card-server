@@ -1,59 +1,3 @@
-const cardIcon = {
-  C1: '🃑',
-  C2: '🃒',
-  C3: '🃓',
-  C4: '🃔',
-  C5: '🃕',
-  C6: '🃖',
-  C7: '🃗',
-  C8: '🃘',
-  C9: '🃙',
-  C10: '🃚',
-  C11: '🃛',
-  C12: '🃝',
-  C13: '🃞',
-  D1: '🃁',
-  D2: '🃂',
-  D3: '🃃',
-  D4: '🃄',
-  D5: '🃅',
-  D6: '🃆',
-  D7: '🃇',
-  D8: '🃈',
-  D9: '🃉',
-  D10: '🃊',
-  D11: '🃋',
-  D12: '🃍',
-  D13: '🃎',
-  H1: '🂱',
-  H2: '🂲',
-  H3: '🂳',
-  H4: '🂴',
-  H5: '🂵',
-  H6: '🂶',
-  H7: '🂷',
-  H8: '🂸',
-  H9: '🂹',
-  H10: '🂺',
-  H11: '🂻',
-  H12: '🂽',
-  H13: '🂾',
-  S1: '🂡',
-  S2: '🂢',
-  S3: '🂣',
-  S4: '🂤',
-  S5: '🂥',
-  S6: '🂦',
-  S7: '🂧',
-  S8: '🂨',
-  S9: '🂩',
-  S10: '🂪',
-  S11: '🂫',
-  S12: '🂭',
-  S13: '🂮',
-  BACK: '🂠',
-};
-
 const suitNumber = {
   C: 0,
   D: 1,
@@ -61,8 +5,22 @@ const suitNumber = {
   S: 3,
 };
 
+const images = {};
+for (const suit in suitNumber) {
+  if (!suitNumber.hasOwnProperty(suit)) {
+    continue;
+  }
+  for (let number = 1; number <= 13; number++) {
+    const value = `${suit}${number}`;
+    images[value] = `url('img/${value}.svg')`;
+  }
+}
+images['BACK'] = "url('img/BACK.svg')";
+
 const MIN_DRAG_DISTANCE = 30;
-const LOCAL_PLAYER = 3;
+const MAX_ACTIVE_PLAYERS = 4;
+const LOCAL_PLAYER = MAX_ACTIVE_PLAYERS - 1;
+const GHOST_OPPONENT = 'ghost_opponent';
 
 class Game {
   constructor(container) {
@@ -72,13 +30,27 @@ class Game {
     this.container = container;
     this.lurkers = new Lurkers();
     this.menu = new Menu(container);
-
+    this.isActivePlayer = false;
     const hand = this.hand.getElement();
-    container.appendChild(hand);
-    container.appendChild(this.surface.getElement());
-    container.appendChild(this.lurkers.getElement());
     const menu = this.menu.getElement();
+
+    container.appendChild(this.surface.getElement());
+    container.appendChild(hand);
+    container.appendChild(this.lurkers.getElement());
     container.appendChild(menu);
+
+    container.addEventListener('sit', (event) => {
+      if (!this.server) {
+        return;
+      }
+      const payload = {
+        type: 'sit'
+      };
+      if (event.detail !== GHOST_OPPONENT) {
+        payload.data = event.detail;
+      }
+      this.server.send(JSON.stringify(payload));
+    });
 
     hand.addEventListener('startDrag', (event) => {
       this.startDrag(event.detail);
@@ -137,15 +109,31 @@ class Game {
         // parse failed;
         return;
       }
-
-      this.setOpponents(update.opponents);
-      if (update.player) {
+      console.log('update received', update);
+      this.isActivePlayer = !!update.player;
+      this.container.classList.toggle('is-lurking', !this.isActivePlayer);
+      if (this.isActivePlayer) {
         this.hand.onStateChange(update.player);
+      } else if (this.hand.cards.length > 0) {
+        this.hand.setCards([]);
       }
       this.surface.onStateChange(update.round);
       this.lurkers.onStateChange(update.lurkers);
       this.menu.onStateChange(update.canUndo);
+      this.setOpponents(update.opponents);
     });
+  }
+
+  reset() {
+    if (this.hand.cards.length > 0) {
+      this.hand.setCards([]);
+    }
+    this.surface.onStateChange();
+    this.lurkers.onStateChange();
+    for (const opponent of this.opponents) {
+      this.container.removeChild(opponent.getElement());
+    }
+    this.opponents = [];
   }
 
   makeMove(drag) {
@@ -233,14 +221,27 @@ class Game {
   }
 
   setOpponents(opponentStates = []) {
-    while (this.opponents.length > opponentStates.length) {
-      const opponent = this.opponents.pop();
-      opponent.getElement()
-        .remove();
+    const opponentCount = opponentStates.length;
+    if (opponentCount < MAX_ACTIVE_PLAYERS) {
+      const openSlots = [];
+      for (let i = 0; i < MAX_ACTIVE_PLAYERS; i++) {
+        if (opponentStates.find((el) => el.position === i)) {
+          continue;
+        }
+        openSlots.push(i);
+      }
+      for (let i = 0; i < MAX_ACTIVE_PLAYERS - opponentCount; i++) {
+        opponentStates.push({
+          name: '',
+          id: GHOST_OPPONENT,
+          position: openSlots.shift(),
+          cardCount: 0
+        });
+      }
     }
     for (let i = 0; i < opponentStates.length; i++) {
       if (!this.opponents[i]) {
-        const opponent = new Opponent(opponentStates[i]);
+        const opponent = new Opponent(opponentStates[i], this.container);
         this.opponents[i] = opponent;
         this.container.appendChild(opponent.getElement());
       } else {
@@ -382,8 +383,9 @@ class Turn {
 }
 
 class Opponent {
-  constructor(state) {
-    this.name = state.name;
+  constructor(state, dispatcher) {
+    this.dispatcher = dispatcher;
+    this.updateName(state.name, state.id);
     this.updateCount(state.cardCount);
     this.updateIndex(state.position);
   }
@@ -391,17 +393,22 @@ class Opponent {
   getElement() {
     if (!this.element) {
       const element = createElement('opponent');
-      const name = createElement('name', element);
-      name.innerText = this.name;
       this.element = element;
-      this.nameElement = name;
+      this.nameElement = createElement('name', element);
+      this.nameElement.addEventListener('click', () => {
+        if (this.id) {
+          this.dispatcher.dispatchEvent(new CustomEvent('sit', {
+            detail: this.id,
+          }));
+        }
+      });
     }
     return this.element;
   }
 
   update(state) {
     this.updateCount(state.cardCount);
-    this.updateName(state.name);
+    this.updateName(state.name, state.id);
     this.updateIndex(state.position);
   }
 
@@ -417,17 +424,25 @@ class Opponent {
     } else {
       while (element.childElementCount - 1 < count) {
         const card = createElement('card-closed card', element);
-        card.innerText = cardIcon.BACK;
+        card.style.backgroundImage = images.BACK;
       }
     }
     this.cardCount = count;
   }
 
-  updateName(name) {
-    if (this.name === name) {
+  updateName(name, id) {
+    if (this.name === name && this.id === id) {
       return;
     }
-    this.nameElement.innerText = name;
+    this.name = name;
+    this.id = id;
+    let label = name;
+    if (id) {
+      label = id === GHOST_OPPONENT ? '(empty seat)' : `(${name}'s empty seat)`;
+    }
+    this.getElement(); // Create element.
+    this.nameElement.innerText = label;
+    this.nameElement.classList.toggle('can-sit', !!id);
   }
 
   updateIndex(index) {
@@ -435,7 +450,7 @@ class Opponent {
       return;
     }
     const element = this.getElement();
-    element.className = `opponent p${index}`;
+    element.className = `opponent p${index} ${this.id === GHOST_OPPONENT ? 'ghost' : ''}`;
     this.index = index;
   }
 }
@@ -656,7 +671,7 @@ class Card {
     if (!this.element) {
       const element = createElement(`card${this.isRed ? ' red' : ''}`);
       element.__card = this;
-      element.innerText = cardIcon[this.value];
+      element.style.backgroundImage = images[this.value];
       this.element = element;
     }
     return this.element;

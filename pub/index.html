@@ -35,20 +35,18 @@
     }
 
     .card {
-      background: #e7e7e7;
+      background-color: #e7e7e7;
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: contain;
+      border: .02em solid #e7e7e7;
       border-radius: .05em;
       box-shadow: -1px 1px 1px rgba(0,0,0,0.1);
-      color: black;
       display: inline-block;
-      font-size: 5rem;
+      font-size: 5em;
       height: 1em;
-      line-height: .9;
+      width: .7em;
       position: relative;
-      padding-bottom: .04em;
-    }
-
-    .red {
-      color: #c00;
     }
 
     .stretchy-hack {
@@ -60,19 +58,28 @@
       display: inline-block;
       position: relative;
       vertical-align: bottom;
+      bottom: -1.2em;
     }
 
     .hand .card {
       font-size: 6em;
       margin: 2px;
+      box-shadow: 0 1px 1px 2px rgba(0,0,0,0.1);
     }
 
     .hand .name {
-      bottom: 7.6em;
+      bottom: 8.5em;
       color: #84af82;
       font-size: .8em;
+      left: 50%;
       position: absolute;
+      transform: translateX(-50%);
       width: 100%;
+      min-width: 20em;
+    }
+
+    .is-lurking .hand {
+      display: none;
     }
 
     .sort-indicator {
@@ -90,13 +97,13 @@
     }
 
     .card-closed {
-      background: #99e;
-      color: blue;
+      background-color: #99e;
+      border-color: #99e;
     }
 
     .selected {
-      background: #fff;
-      border: .025em;
+      background-color: #fff;
+      border-color: #fff;
       bottom: .25em;
       position: relative;
     }
@@ -109,13 +116,13 @@
       text-align: center;
     }
 
-    .opponent.p0 {
+    .opponent.p0  {
       left: .25em;
       top: 50%;
       transform: translateX(-90%) rotate(-90deg) translateY(50%);
     }
 
-    .opponent.p1 {
+    .opponent.p1{
       left: 50%;
       top: .25em;
       transform: translate(-50%, -40%);
@@ -128,22 +135,46 @@
     }
 
     .opponent.p3 {
-      left: 50%;
       bottom: .25em;
+      left: 50%;
       transform: translate(-50%, 40%) rotate(180deg);
     }
 
+    .opponent.ghost {
+      display: none;
+    }
+
+    .is-lurking .opponent.ghost {
+      display: block;
+    }
+
     .opponent .card {
-      margin: 0 -.295em;
+      margin: 0 -.3em;
     }
 
     .opponent .name {
-      bottom: -1.5em;
+      top: 5.5em;
       color: #84af82;
       left: 50%;
-      min-width: 10em;
+      min-width: 20em;
       position: absolute;
       transform: translateX(-50%);
+      z-index: 1;
+    }
+
+    .is-lurking .opponent .name.can-sit:hover {
+      cursor: pointer;
+    }
+
+    .is-lurking .opponent .name.can-sit::after {
+      color: #ccc;
+      content: 'sit';
+      display: block;
+      font-weight: bold;
+      margin: 0 .3em;
+    }
+    .is-lurking .opponent .name.can-sit:hover::after {
+      color: #fff;
     }
 
     .turn {
@@ -175,13 +206,15 @@
     }
 
     .turn .card {
-      background: #bbb;
+      background-color: #bbb;
+      border-color: #bbb;
       font-size: 6em;
       margin: 0 -.2em;
     }
 
     .turn:last-child .card {
-      background: #e7e7e7;
+      background-color: #e7e7e7;
+      border-color: #e7e7e7;
     }
 
     .move {
@@ -375,7 +408,7 @@
 </head>
 <body class="table">
   <div class="stretchy-hack"></div>
-  <div class="message">shit's fucked.</div>
+  <div class="message">connecting..</div>
   <div class="welcome dialog">
     <input class="name-input" onkeyup="initialize(event)"/><br/>
     <div class="dialog-button" onclick="initialize()">Start</div>
@@ -384,36 +417,63 @@
 <script src="game.js"></script>
 <script>
   console.log('you can cheat if you wanna.');
-  var HOST = location.origin.replace(/^http/, 'ws');
-  const socket = new WebSocket(HOST);
+  const MAX_RECONNECT_ATTEMPTS = 15;
+  const RECONNECT_TIMEOUT_DURATION = 1000;
+  const HOST = location.origin.replace(/^http/, 'ws');
   const table = document.body;
   const game = new Game(table);
   let heartbeat = 0;
+  let reconnectAttempts = 0;
+  let reconnectTimeout = 0;
+  let socket;
 
-  socket.addEventListener('open', (event) => {
-    game.setServer(socket);
-    table.classList.add('connected');
-    document.querySelector('.name-input').focus();
-    clearInterval(heartbeat);
-    heartbeat = setInterval(() => {
-      // Heroku requires a ping < every 55sec to keep a connection open.
-      socket.send(JSON.stringify({type: 'hb', data: new Date()}));
-    }, 15 * 1000);
-  });
-
-  socket.addEventListener('message', (event) => {
-    if (event.data === 'init') {
-      table.classList.add('started');
+  function connect() {
+    if (socket) {
+      socket.close();
     }
-  });
-  socket.addEventListener('close', (event) => {
-    table.classList.remove('connected');
-    clearInterval(heartbeat);
-  });
+    socket = new WebSocket(HOST);
 
-  socket.addEventListener('error', (event) => {
-    console.log('error', event);
-  });
+    socket.addEventListener('open', (event) => {
+      game.setServer(socket);
+      table.classList.add('connected');
+      table.classList.remove('started');
+      const nameInput = document.querySelector('.name-input');
+      nameInput.value = localStorage.getItem('name') || '';
+      nameInput.focus();
+
+      clearInterval(heartbeat);
+      clearTimeout(reconnectTimeout);
+      reconnectAttempts = MAX_RECONNECT_ATTEMPTS;
+      heartbeat = setInterval(() => {
+        // Heroku requires a ping < every 55sec to keep a connection open.
+        socket.send(JSON.stringify({type: 'hb', data: new Date()}));
+      }, 15 * 1000);
+    });
+
+    socket.addEventListener('message', (event) => {
+      if (event.data === 'init') {
+        table.classList.add('started');
+      }
+    });
+
+    socket.addEventListener('close', (event) => {
+      table.classList.remove('connected');
+      game.reset();
+      clearInterval(heartbeat);
+      clearTimeout(reconnectTimeout);
+      reconnectAttempts -= 1;
+      if (reconnectAttempts >= 0) {
+        const attempt = MAX_RECONNECT_ATTEMPTS - reconnectAttempts;
+        const millis = RECONNECT_TIMEOUT_DURATION * attempt * attempt;
+        console.log(`Reconnecting in ${millis/1000}s.. attempt ${attempt} of ${MAX_RECONNECT_ATTEMPTS}`);
+        reconnectTimeout = setTimeout(connect, millis);
+      }
+    });
+
+    socket.addEventListener('error', (event) => {
+      console.log('error', event);
+    });
+  }
 
   function initialize(event) {
     if (event && (event.key != 'Enter' || event.code != 'Enter')) {
@@ -423,7 +483,19 @@
     if (!name) {
       return;
     }
+    localStorage.setItem('name', name);
+    if (!socket) {
+      return;
+    }
     socket.send(JSON.stringify({type: 'init', data: name}));
   }
+
+  function updateScale() {
+    document.body.style.fontSize = `${Math.round((window.innerWidth / 70))}px`;
+  }
+
+  window.onresize = updateScale;
+  updateScale();
+  connect();
 </script>
 </html>
