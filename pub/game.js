@@ -15,7 +15,7 @@ for (const suit in suitNumber) {
     images[value] = `url('img/${value}.svg')`;
   }
 }
-images['BACK'] = "url('img/BACK.svg')";
+images['BACK'] = "url('img/BACK.png')";
 
 const MIN_DRAG_DISTANCE = 30;
 const MAX_ACTIVE_PLAYERS = 4;
@@ -387,7 +387,7 @@ class Opponent {
     this.dispatcher = dispatcher;
     this.updateName(state.name, state.id);
     this.updateCount(state.cardCount);
-    this.updateIndex(state.position);
+    this.updatePosition(state.position);
   }
 
   getElement() {
@@ -409,7 +409,7 @@ class Opponent {
   update(state) {
     this.updateCount(state.cardCount);
     this.updateName(state.name, state.id);
-    this.updateIndex(state.position);
+    this.updatePosition(state.position);
   }
 
   updateCount(count) {
@@ -445,13 +445,13 @@ class Opponent {
     this.nameElement.classList.toggle('can-sit', !!id);
   }
 
-  updateIndex(index) {
-    if (this.index === index) {
+  updatePosition(position) {
+    const element = this.getElement();
+    const className = `opponent p${position}${this.id === GHOST_OPPONENT ? ' ghost' : ''}`;
+    if (element.className === className) {
       return;
     }
-    const element = this.getElement();
-    element.className = `opponent p${index} ${this.id === GHOST_OPPONENT ? 'ghost' : ''}`;
-    this.index = index;
+    element.className = className;
   }
 }
 

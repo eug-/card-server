@@ -22,11 +22,11 @@
     }
 
     .surface {
-      bottom: 8em;
-      left: 7em;
+      bottom: 8rem;
+      left: 7rem;
       position: absolute;
-      right: 7em;
-      top: 8em;
+      right: 7rem;
+      top: 8rem;
     }
 
     .surface.dropzone {
@@ -97,8 +97,10 @@
     }
 
     .card-closed {
-      background-color: #99e;
-      border-color: #99e;
+      background-color: #dbdbdb;
+      border-color: #000;
+      background-position: center;
+      background-size: 92% 96%;
     }
 
     .selected {
@@ -491,7 +493,13 @@
   }
 
   function updateScale() {
-    document.body.style.fontSize = `${Math.round((window.innerWidth / 70))}px`;
+    let size = Math.min(
+      Math.round((window.innerWidth / 80)),
+      Math.round((window.innerHeight / 40)));
+    if (size % 2) {
+      size += 1;
+    }
+    document.body.style.fontSize = `${size}px`;
   }
 
   window.onresize = updateScale;
