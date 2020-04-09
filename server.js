@@ -46,13 +46,13 @@ class Game {
     this.sendUpdate();
   }
 
-  takeTurn(playerId, cards) {
+  takeTurn(playerId, cards, x, y) {
     const player = this.players[playerId];
     if (!player || !this.isActivePlayer(playerId)) {
       return;
     }
     const playableCards = player.playCards(cards);
-    this.round.push(new Turn(playerId, playableCards));
+    this.round.push(new Turn(playerId, playableCards, x, y));
     this.sendUpdate();
   }
 
@@ -216,7 +216,7 @@ class Game {
           this.round[this.round.length - 1].playerId === socketId : false,
         lurkers: [],
         round: [],
-        graveyard: 0,
+        graveyard: [],
       };
 
       const playerPositions = {};
@@ -238,10 +238,15 @@ class Game {
         update.lurkers.push(this.players[this.lurkers[i]].name);
       }
       for (const turn of this.round) {
-        update.round.push({
+        const turnData = {
           cards: turn.cards,
           position: playerPositions[turn.playerId],
-        });
+        };
+        if (turn.x !== undefined) {
+          turnData.x = turn.x;
+          turnData.y = turn.y;
+        }
+        update.round.push(turnData);
       }
       socket.send(JSON.stringify({
         type: 'update',
@@ -252,9 +257,11 @@ class Game {
 }
 
 class Turn {
-  constructor(playerId, cards) {
+  constructor(playerId, cards, x, y) {
     this.playerId = playerId;
     this.cards = cards;
+    this.x = x;
+    this.y = y;
   }
 }
 
@@ -411,7 +418,8 @@ wss.on('connection', (socket) => {
         return;
       case 'turn':
         console.log('message received', socket.id, message);
-        game.takeTurn(socket.id, message.data);
+        const turn = message.data;
+        game.takeTurn(socket.id, turn.cards, turn.x, turn.y);
         return;
       case 'rearrange':
         console.log('message received', socket.id, message.type);

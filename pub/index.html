@@ -22,11 +22,12 @@
     }
 
     .surface {
-      bottom: 8rem;
-      left: 7rem;
+      height: 30em;
+      left: 50%;
       position: absolute;
-      right: 7rem;
-      top: 8rem;
+      top: 48%;
+      transform: translate(-50%, -50%);
+      width: 30em;
     }
 
     .surface.dropzone {
@@ -205,6 +206,11 @@
       left: 50%;
       top: 40%;
       transform: translate(-50%, 80%);
+    }
+
+    .turn.placed {
+      left: auto;
+      top: auto;
     }
 
     .turn .card {

@@ -136,11 +136,11 @@ class Game {
     this.opponents = [];
   }
 
-  makeMove(drag) {
+  makeMove(drag, x, y) {
     this.hand.removeCards(drag.cards);
     this.server.send(JSON.stringify({
       type: 'turn',
-      data: drag.getMessage(),
+      data: drag.getMessage(x, y),
     }));
   }
 
@@ -186,14 +186,17 @@ class Game {
         }
       }
 
-      const element = drag.getElement();
-      element.style.transform = `translate(${mouseEvent.pageX - 30}px, ${mouseEvent.pageY - 50}px)`;
+
+      drag.setPosition(mouseEvent.pageX - 30, mouseEvent.pageY - 50);
       if (inArea(dropzone.surface, mouseEvent)) {
         enterArea(surface);
+        drag.setRotationForPosition((mouseEvent.pageX - dropzone.surface.x) / dropzone.surface.width);
       } else if (inArea(dropzone.hand, mouseEvent)) {
+        drag.setRotationForPosition();
         enterArea(hand);
         this.hand.setSortPosition(mouseEvent.pageX - dropzone.hand.x, dropzone.hand.width);
       } else {
+        drag.setRotationForPosition();
         leaveArea();
       }
     };
@@ -208,7 +211,9 @@ class Game {
       drag.getElement()
         .remove();
       if (inSurface) {
-        this.makeMove(drag);
+        const x = (mouseEvent.pageX - dropzone.surface.left) / dropzone.surface.width;
+        const y = (mouseEvent.pageY - dropzone.surface.top) / dropzone.surface.height;
+        this.makeMove(drag, x, y);
       }
       if (inHand) {
         this.hand.rearrange(drag.cards);
@@ -340,7 +345,9 @@ class Surface {
       }
       const update = new Turn(
         round[i].cards.map(card => new Card(card)),
-        round[i].position);
+        round[i].position,
+        round[i].x,
+        round[i].y);
       this.round[i] = update;
       this.getElement()
         .appendChild(update.getElement());
@@ -348,10 +355,33 @@ class Surface {
   }
 }
 
+const xInPosition = {
+  0: 'top',
+  1: 'right',
+  2: 'bottom',
+  3: 'left',
+};
+
+const yInPosition = {
+  0: 'right',
+  1: 'bottom',
+  2: 'left',
+  3: 'top',
+};
+
+const rotationInPosition = {
+  0: 270,
+  1: 180,
+  2: 90,
+  3: 0,
+};
+
 class Turn {
-  constructor(cards = [], position = 0) {
+  constructor(cards = [], position = 0, x, y) {
     this.cards = cards;
     this.position = position;
+    this.x = x;
+    this.y = y;
   }
 
   equalsState(state) {
@@ -359,6 +389,9 @@ class Turn {
       return false;
     }
     if (state.position != this.position) {
+      return false;
+    }
+    if (state.x !== this.x || state.y !== this.y) {
       return false;
     }
     for (let i = 0; i < state.cards.length; i++) {
@@ -371,7 +404,15 @@ class Turn {
 
   getElement() {
     if (!this.element) {
-      const element = createElement(`turn p${this.position}`);
+      const placed = this.x !== undefined;
+      const element = createElement('turn');
+      if (placed) {
+        this.setSafePosition(element, xInPosition[this.position], this.x * 100);
+        this.setSafePosition(element, yInPosition[this.position], this.y * 100);
+        element.style.transform = `translate(${element.style.left ? '-' : ''}50%, ${element.style.top ? '-' : ''}50%) rotate(${this.calculateRotation(this.position, this.x)})`;
+      } else {
+        element.className += `p${this.position}`;
+      }
       for (const card of this.cards) {
         card.setMessy(true);
         element.appendChild(card.getElement());
@@ -379,6 +420,23 @@ class Turn {
       this.element = element;
     }
     return this.element;
+  }
+
+  setSafePosition(element, styleAttribute, percentage) {
+    if (styleAttribute === 'left' && percentage > 50) {
+      styleAttribute = 'right';
+      percentage = 100 - percentage;
+    }
+    if (styleAttribute === 'right' && percentage > 50) {
+      styleAttribute = 'left';
+      percentage = 100 - percentage;
+    }
+    element.style[styleAttribute] = `${percentage}%`;
+  }
+
+  calculateRotation(position, x) {
+    const startingRotation = rotationInPosition[position];
+    return `${startingRotation - (30 - x * 60)}deg`;
   }
 }
 
@@ -510,12 +568,31 @@ class Drag {
     return this.element;
   }
 
-  getMessage() {
-    const message = [];
-    for (const card of this.cards) {
-      message.push(card.value);
+  setRotationForPosition(x) {
+    if (x === undefined) {
+      delete this.rotation;
+    } else {
+      this.rotation = `rotate(${-(30 - x * 60)}deg)`;
     }
-    return message;
+  }
+
+  setPosition(x, y) {
+    const element = this.getElement();
+    const transform = `translate(${x}px, ${y}px) ${this.rotation ? this.rotation : ''}`;
+    console.log(transform);
+    element.style.transform = transform;
+  }
+
+  getMessage(surfaceX, surfaceY) {
+    const cards = [];
+    for (const card of this.cards) {
+      cards.push(card.value);
+    }
+    return {
+      x: surfaceX,
+      y: surfaceY,
+      cards,
+    };
   }
 }
 
