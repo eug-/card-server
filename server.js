@@ -56,6 +56,19 @@ class Game {
     this.sendUpdate();
   }
 
+  moveTurn(playerId, turnId, x, y) {
+    const player = this.players[playerId];
+    if (!player || !this.isActivePlayer(playerId)) {
+      return;
+    }
+    const turn = this.round.find((turn) => turn.id == turnId);
+    if (turn) {
+      turn.x = x;
+      turn.y = y;
+    }
+    this.sendUpdate();
+  }
+
   rearrange(playerId, cards) {
     const player = this.players[playerId];
     if (!player) {
@@ -146,7 +159,7 @@ class Game {
 
   deal(count) {
     this.started = true;
-    this.deck = new Deck();
+    this.deck = new Deck(count == 'д');
     this.round = [];
     this.graveyard = [];
     for (const playerId of this.activePlayers) {
@@ -156,35 +169,19 @@ class Game {
         this.deal(count);
         return;
       }
-      if (count === 13 && player.name in EASTER_NAMES) {
-        this.easterDeal(player.id, count);
-        return;
-      }
       player.setHand(this.deck.draw(count));
     }
     this.sendUpdate();
   }
 
-  easterDeal(luckyDog, count) {
-    this.deck = new Deck();
-    const easterHands = [
-      ['C3', 'C4', 'C5', 'D6', 'D7', 'D8', 'H9', 'H10', 'H11', 'S12', 'S13', 'S1', 'S2'],
-      ['C3', 'H3', 'S3', 'D13', 'H13', 'S13', 'D1', 'H1', 'S1', 'C2', 'D2', 'H2', 'S2'],
-      ['C3', 'C13', 'D13', 'H13', 'S13', 'C1', 'D1', 'H1', 'S1', 'C2', 'D2', 'H2', 'S2'],
-      ['C3', 'C4', 'D4', 'H4', 'S4', 'S6', 'S7', 'S8', 'S9', 'C2', 'D2', 'H2', 'S2'],
-    ];
-    const easterHand = easterHands[Math.floor(Math.random() * easterHands.length)];
-    this.players[luckyDog].setHand(easterHand);
-    for (const card of easterHand) {
-      this.deck.cards.splice(this.deck.cards.indexOf(card), 1);
+  pickup(playerId, turnIds = []) {
+    if (!this.isActivePlayer(playerId)) {
+      return;
     }
-    for (let i = 0; i < this.activePlayers.length; i++) {
-      const playerId = this.activePlayers[i];
-      if (playerId === luckyDog) {
-        continue;
-      }
-      const player = this.players[playerId];
-      player.setHand(this.deck.draw(count));
+    const turns = this.round.filter((turn) => turnIds.includes(turn.id));
+    this.round = this.round.filter((turn) => !turnIds.includes(turn.id));
+    for (const turn of turns) {
+      this.players[playerId].hand.push(...turn.cards);
     }
     this.sendUpdate();
   }
@@ -219,6 +216,10 @@ class Game {
         graveyard: [],
       };
 
+      if (this.deck) {
+        update.deck = this.deck.getPayload();
+      }
+
       const playerPositions = {};
       const playerIndex = this.activePlayers.indexOf(socket.id);
       for (let i = 0; i < this.activePlayers.length; i++) {
@@ -240,6 +241,7 @@ class Game {
       for (const turn of this.round) {
         const turnData = {
           cards: turn.cards,
+          id: turn.id,
           position: playerPositions[turn.playerId],
         };
         if (turn.x !== undefined) {
@@ -260,16 +262,21 @@ class Turn {
   constructor(playerId, cards, x, y) {
     this.playerId = playerId;
     this.cards = cards;
+    this.id = cards.join('');
     this.x = x;
     this.y = y;
   }
 }
 
 class Deck {
-  constructor() {
+  constructor(durak = false) {
     this.cards = [];
+    this.showLastCard = durak;
     for (const suit of ['C', 'D', 'H', 'S']) {
       for (let number = 1; number <= 13; number++) {
+        if (durak && number >= 2 && number <= 5) {
+          continue;
+        }
         this.cards.push(`${suit}${number}`);
       }
     }
@@ -279,6 +286,18 @@ class Deck {
   draw(count) {
     // Take em off the back
     return this.cards.splice(-count, count);
+  }
+
+  getPayload() {
+    const payload = {
+      count: this.cards.length
+    };
+
+    if (this.showLastCard) {
+      payload.last = this.cards[0];
+    }
+
+    return payload;
   }
 }
 
@@ -372,6 +391,16 @@ function shuffle(array) {
   return array;
 }
 
+const fullLogMessageTypes = {
+  init: true,
+  sit: true,
+  deal: true,
+  take: true,
+  turn: true,
+  rearrange: false,
+  undo: true,
+  newround: true,
+};
 
 const game = new Game(wss);
 wss.on('connection', (socket) => {
@@ -386,6 +415,8 @@ wss.on('connection', (socket) => {
   // Track current connections.
   sockets[socket.id] = socket;
 
+
+
   socket.on('message', (data) => {
     let message;
     try {
@@ -393,6 +424,11 @@ wss.on('connection', (socket) => {
     } catch (e) {
       // Bad message syntax
       return;
+    }
+
+    if (message.type in fullLogMessageTypes) {
+      const logData = fullLogMessageTypes[message.type] ? message : message.type;
+      console.log('message received', socket.id, logData);
     }
 
     switch (message.type) {
@@ -403,34 +439,34 @@ wss.on('connection', (socket) => {
         }));
         return;
       case 'init':
-        console.log('message received', socket.id, message);
         const player = new Player(message.data, socket.id);
         socket.send('init');
         game.addPlayer(player);
         return;
       case 'sit':
-        console.log('message received', socket.id, message);
         game.sit(socket.id, message.data);
         return;
       case 'deal':
-        console.log('message received', socket.id, message);
         game.deal(message.data);
         return;
+      case 'pickup':
+        game.pickup(socket.id, message.data);
+        return;
       case 'turn':
-        console.log('message received', socket.id, message);
         const turn = message.data;
         game.takeTurn(socket.id, turn.cards, turn.x, turn.y);
         return;
       case 'rearrange':
-        console.log('message received', socket.id, message.type);
         game.rearrange(socket.id, message.data);
         return;
+      case 'rearrangesurface':
+        const moveTurn = message.data;
+        game.moveTurn(socket.id, moveTurn.turnId, moveTurn.x, moveTurn.y);
+        return;
       case 'undo':
-        console.log('message received', socket.id, message);
         game.undo(socket.id);
         return;
       case 'newround':
-        console.log('message received', socket.id, message);
         game.newRound();
         return;
     }
