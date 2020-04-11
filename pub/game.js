@@ -489,17 +489,13 @@ class Deck {
     if (last) {
       count -= 1;
     }
-    if (this.count === count) {
-      return;
-    }
     const element = this.getElement();
     for (let i = this.count; i > count; i--) {
       element.lastChild.remove();
     }
-    for (let i = this.count; i <= count; i++) {
+    for (let i = this.count; i < count; i++) {
       const card = createElement('card-closed card', element);
       card.style.transform = getFussedTransform(i);
-      card.style.t
     }
     this.count = count;
   }
