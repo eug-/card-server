@@ -240,7 +240,6 @@ class Game {
     };
 
     const onMouseUp = (mouseEvent) => {
-
       const inSurface = currentArea === surface;
       const inHand = currentArea === hand;
       document.removeEventListener('mouseup', onMouseUp);
@@ -251,6 +250,7 @@ class Game {
       if (!drag) {
         return;
       }
+      this.surface.selectAll(false);
       drag.getElement()
         .remove();
       if (inSurface) {
@@ -371,6 +371,8 @@ class Surface {
   }
 
   selectAll(selected) {
+    this.getElement()
+      .classList.remove('dragging');
     for (const turn of this.round) {
       turn.select(selected);
     }
@@ -398,27 +400,29 @@ class Surface {
     const elements = element.getElementsByClassName('selected');
     const turns = [];
     const cards = [];
+    const targetTurn = dragEvent.target.__turn || dragEvent.target.parentElement.__turn;
     let addTarget = true;
     for (const el of elements) {
-      if (el === dragEvent.target) {
-        addTarget = false;
-      }
       if (el.__turn) {
         const turn = el.__turn;
         turns.push(turn);
+        if (turn === targetTurn) {
+          addTarget = false;
+        }
       }
     }
-    if (addTarget && dragEvent.target.__turn || dragEvent.target.parentElement.__turn) {
-      turns.push(dragEvent.target.__turn || dragEvent.target.parentElement.__turn);
+    if (addTarget && targetTurn) {
+      turns.push(targetTurn);
+      targetTurn.select(true);
     }
     if (turns.length <= 0) {
       return;
     }
+    element.classList.add('dragging');
     for (const turn of turns) {
       for (const card of turn.cards) {
         cards.push(card.clone());
       }
-      turn.select(false);
     }
     return new Drag(cards, dragEvent.pageX, dragEvent.pageY, turns);
   }
@@ -566,24 +570,24 @@ class Turn {
     }
   }
 
-  encodePosition(x, y) {
+  encodePosition(x, y, xMax = 1, yMax = 1) {
     switch (this.position) {
       case 0:
         // rotate 90 cw
         return {
           x: y,
-          y: 1 - x
+          y: xMax - x
         };
       case 1:
         // rotate 180deg
         return {
-          x: 1 - x,
-          y: 1 - y
+          x: xMax - x,
+          y: yMax - y
         };
       case 2:
         // rotate 90 ccw
         return {
-          x: 1 - y,
+          x: yMax - y,
           y: x
         };
       case 3:
@@ -742,9 +746,30 @@ class Drag {
     return this.element;
   }
 
-  setPosition(x, y, offset, width, height, surfaceWidth) {
-    const MAX_ROTATION = 50 * (width / surfaceWidth);
-    const xPad = (width - surfaceWidth) / 2;
+  setPosition(x, y, offset, width, height, surfaceSize) {
+    const deg = this.getRotation(x, y, width, height, surfaceSize);
+    const transform = `translate(${x - offset.x}px, ${y - offset.y}px) rotate(${deg}deg)`;
+    this.getElement()
+      .style.transform = transform;
+  }
+
+  getRotation(x, y, width, height, surfaceSize) {
+    let positionalDeg = 0;
+    // Handle rotation for other players' turns.
+    if (this.turns && this.turns.length === 1) {
+      const turn = this.turns[0];
+      positionalDeg = rotationInPosition[turn.position];
+      const updatedPositions = turn.encodePosition(x, y, width, height);
+      x = updatedPositions.x;
+      y = updatedPositions.y;
+      if (turn.position === 2 || turn.position === 0) {
+        const temp = width;
+        width = height;
+        height = temp;
+      }
+    }
+
+    const MAX_ROTATION = 50 * (width / surfaceSize);
     const yPad = Math.floor(height * .5);
     const pivot = x / width;
     const maxDeg = (pivot * MAX_ROTATION) - (MAX_ROTATION / 2);
@@ -752,10 +777,7 @@ class Drag {
     if (y > yPad) {
       damper -= (y - yPad) / (height - yPad);
     }
-    const deg = maxDeg * damper;
-    const transform = `translate(${x - offset.x}px, ${y - offset.y}px) rotate(${deg}deg)`;
-    this.getElement()
-      .style.transform = transform;
+    return positionalDeg + (maxDeg * damper);
   }
 
   getMessage(surfaceX, surfaceY) {

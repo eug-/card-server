@@ -35,10 +35,31 @@
       border-radius: 2em;
     }
 
-    .surface .turn.selected .card {
+    .surface .turn.selected {
+      box-shadow: 20px 20px 30px rgba(0,0,0,0.2);
+    }
+
+    .surface.dragging .turn.selected {
+      opacity: 0.2;
+    }
+
+    .surface .turn.selected .card,
+    .move .card  {
       background-color: #fff;
       border: .04em solid #fff;
       font-size: 6.2em;
+    }
+
+    .move {
+      box-shadow: 20px 20px 30px rgba(0,0,0,0.2);
+      left: 0;
+      padding: 0 1em;
+      position: absolute;
+      top: 0;
+    }
+
+    .move .card {
+      margin: 0 -.22em;
     }
 
     .card {
@@ -229,19 +250,6 @@
     .turn:last-child .card {
       background-color: #e7e7e7;
       border-color: #e7e7e7;
-    }
-
-    .move {
-      box-shadow: 20px 20px 30px rgba(0,0,0,0.2);
-      left: 0;
-      padding: 0 1em;
-      position: absolute;
-      top: 0;
-    }
-
-    .move .card {
-      font-size: 6em;
-      margin: 0 -.23em;
     }
 
     .message {
