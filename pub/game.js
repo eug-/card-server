@@ -96,15 +96,6 @@ class Game {
       }));
     });
 
-    menu.addEventListener('undo', () => {
-      if (!this.server) {
-        return;
-      }
-      this.server.send(JSON.stringify({
-        type: 'undo',
-      }));
-    });
-
     menu.addEventListener('deal', () => {
       if (!this.server) {
         return;
@@ -149,7 +140,6 @@ class Game {
       }
       this.surface.onStateChange(update.round);
       this.lurkers.onStateChange(update.lurkers);
-      this.menu.onStateChange(update.canUndo);
       this.setOpponents(update.opponents);
     });
   }
@@ -342,25 +332,9 @@ class Menu {
       dealButton.addEventListener('click', () => {
         dealMenu.classList.remove('hidden');
       });
-
-      const undoButton = createElement('button disabled', element);
-      undoButton.innerText = 'undo';
-      undoButton.addEventListener('click', () => {
-        if (undoButton.classList.contains('disabled')) {
-          return;
-        }
-        element.dispatchEvent(new Event('undo'));
-      });
-
       this.element = element;
-      this.undoButton = undoButton;
     }
     return this.element;
-  }
-
-  onStateChange(canUndo) {
-    this.getElement();
-    this.undoButton.classList.toggle('disabled', !canUndo);
   }
 }
 

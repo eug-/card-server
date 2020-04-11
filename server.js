@@ -189,19 +189,6 @@ class Game {
     this.sendUpdate();
   }
 
-  undo(playerId) {
-    const lastMove = this.round.pop();
-    if (!lastMove) {
-      return;
-    }
-    if (lastMove.playerId != playerId) {
-      this.round.push(lastMove);
-      return;
-    }
-    this.players[playerId].hand.push(...lastMove.cards);
-    this.sendUpdate();
-  }
-
   sendUpdate(playerId) {
     let c = 0;
     for (const socketId in sockets) {
@@ -212,8 +199,6 @@ class Game {
       const update = {
         opponents: [],
         player: undefined,
-        canUndo: this.round.length > 0 ?
-          this.round[this.round.length - 1].playerId === socketId : false,
         lurkers: [],
         round: [],
         graveyard: [],
@@ -398,10 +383,11 @@ const fullLogMessageTypes = {
   init: true,
   sit: true,
   deal: true,
-  take: true,
+  draw: true,
   turn: true,
+  pickup: true,
   rearrange: false,
-  undo: true,
+  rearrangesurface: true,
   newround: true,
 };
 
@@ -465,9 +451,6 @@ wss.on('connection', (socket) => {
       case 'rearrangesurface':
         const moveTurn = message.data;
         game.moveTurn(socket.id, moveTurn.turnId, moveTurn.x, moveTurn.y);
-        return;
-      case 'undo':
-        game.undo(socket.id);
         return;
       case 'newround':
         game.newRound();
