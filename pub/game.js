@@ -96,13 +96,13 @@ class Game {
       }));
     });
 
-    menu.addEventListener('deal', () => {
+    menu.addEventListener('deal', (event) => {
       if (!this.server) {
         return;
       }
       this.server.send(JSON.stringify({
         type: 'deal',
-        data: 13,
+        data: event.detail,
       }));
     });
 
@@ -304,17 +304,24 @@ class Menu {
     this.container = container;
   }
 
+  createDealOption(dealValue, dialog, dispatcher) {
+    const button = createElement('dialog-button', dialog);
+    button.innerText = dealValue;
+    button.addEventListener('click', () => {
+      dialog.classList.add('hidden');
+      dispatcher.dispatchEvent(new CustomEvent('deal', {
+        detail: dealValue
+      }));
+    });
+  }
+
   getElement() {
     if (!this.element) {
       const element = createElement('controls-central');
 
       const dealMenu = createElement('dialog deal-menu hidden', this.container);
-      const yesButton = createElement('dialog-button', dealMenu);
-      yesButton.innerText = 'Yes';
-      yesButton.addEventListener('click', () => {
-        dealMenu.classList.add('hidden');
-        element.dispatchEvent(new Event('deal'));
-      });
+      this.createDealOption(13, dealMenu, element);
+      this.createDealOption('д', dealMenu, element);
       const cancelButton = createElement('dialog-button', dealMenu);
       cancelButton.innerText = 'Cancel';
       cancelButton.addEventListener('click', () => {

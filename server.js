@@ -157,16 +157,18 @@ class Game {
     }
   }
 
-  deal(count) {
+  deal(gameType) {
+    const isDurak = gameType == 'д';
+    const count = isDurak ? 6 : Number(gameType);
     this.started = true;
-    this.deck = new Deck(count == 'д');
+    this.deck = new Deck(isDurak);
     this.round = [];
     this.graveyard = [];
     for (const playerId of this.activePlayers) {
       const player = this.players[playerId];
       if (player.abandoned) {
         this.removePlayerById(playerId);
-        this.deal(count);
+        this.deal(gameType);
         return;
       }
       player.setHand(this.deck.draw(count));
