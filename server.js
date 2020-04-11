@@ -176,6 +176,15 @@ class Game {
     this.sendUpdate();
   }
 
+  draw(playerId) {
+    const player = this.players[playerId];
+    if (!this.isActivePlayer(playerId) || !player || this.deck.cards.length <= 0) {
+      return;
+    }
+    player.hand.push(...this.deck.draw(1));
+    this.sendUpdate();
+  }
+
   pickup(playerId, turnIds = [], position) {
     if (!this.isActivePlayer(playerId)) {
       return;
@@ -439,6 +448,9 @@ wss.on('connection', (socket) => {
         return;
       case 'deal':
         game.deal(message.data);
+        return;
+      case 'draw':
+        game.draw(socket.id);
         return;
       case 'pickup':
         game.pickup(socket.id, message.data.turnIds, message.data.index);

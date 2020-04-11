@@ -15,7 +15,6 @@ for (const suit in suitNumber) {
     images[value] = `url('img/${value}.svg')`;
   }
 }
-images['BACK'] = "url('img/BACK.png')";
 
 const MIN_DRAG_DISTANCE = 30;
 const MAX_ACTIVE_PLAYERS = 4;
@@ -25,6 +24,7 @@ const GHOST_OPPONENT = 'ghost_opponent';
 class Game {
   constructor(container) {
     this.opponents = [];
+    this.deck = new Deck();
     this.hand = new Hand();
     this.surface = new Surface();
     this.container = container;
@@ -34,11 +34,13 @@ class Game {
     const hand = this.hand.getElement();
     const menu = this.menu.getElement();
     const surface = this.surface.getElement();
+    const deck = this.deck.getElement();
 
     container.appendChild(surface);
     container.appendChild(hand);
     container.appendChild(this.lurkers.getElement());
     container.appendChild(menu);
+    container.appendChild(deck);
 
     container.addEventListener('sit', (event) => {
       if (!this.server) {
@@ -114,6 +116,15 @@ class Game {
         type: 'newround',
       }));
     });
+
+    deck.addEventListener('draw', () => {
+      if (!this.server || !this.isActivePlayer) {
+        return;
+      }
+      this.server.send(JSON.stringify({
+        type: 'draw',
+      }));
+    });
   }
 
   setServer(server) {
@@ -138,6 +149,7 @@ class Game {
       } else if (this.hand.cards.length > 0) {
         this.hand.setCards([]);
       }
+      this.deck.onStateChange(update.deck);
       this.surface.onStateChange(update.round);
       this.lurkers.onStateChange(update.lurkers);
       this.setOpponents(update.opponents);
@@ -464,6 +476,47 @@ const rotationInPosition = {
   3: 0,
 };
 
+class Deck {
+  constructor() {
+    this.bottomCard = new Card();
+    this.count = 0;
+  }
+
+  onStateChange(deck = {}) {
+    const last = deck.last;
+    let count = deck.count || 0;
+    this.bottomCard.updateValue(last);
+    if (last) {
+      count -= 1;
+    }
+    if (this.count === count) {
+      return;
+    }
+    const element = this.getElement();
+    for (let i = this.count; i > count; i--) {
+      element.lastChild.remove();
+    }
+    for (let i = this.count; i <= count; i++) {
+      const card = createElement('card-closed card', element);
+      card.style.transform = getFussedTransform(i);
+      card.style.t
+    }
+    this.count = count;
+  }
+
+  getElement() {
+    if (!this.element) {
+      const element = createElement('deck');
+      element.appendChild(this.bottomCard.getElement());
+      this.element = element;
+      element.addEventListener('click', () => {
+        element.dispatchEvent(new Event('draw'));
+      });
+    }
+    return this.element;
+  }
+}
+
 class Turn {
   constructor(cards = [], position = 0, id, x, y) {
     this.cards = cards;
@@ -650,7 +703,6 @@ class Opponent {
     } else {
       while (element.childElementCount - 1 < count) {
         const card = createElement('card-closed card', element);
-        card.style.backgroundImage = images.BACK;
       }
     }
     this.cardCount = count;
@@ -944,9 +996,7 @@ class Hand {
 
 class Card {
   constructor(value = '') {
-    this.suit = value.substr(0, 1);
-    this.value = value;
-    this.isRed = this.suit === 'H' || this.suit === 'D';
+    this.updateValue(value);
   }
 
   clone() {
@@ -958,19 +1008,38 @@ class Card {
       .classList.toggle('selected', value);
   }
 
-  get selected() {
-    return this.getElement()
-      .classList.contains('selected');
-  }
-
   getElement() {
     if (!this.element) {
-      const element = createElement(`card${this.isRed ? ' red' : ''}`);
+      const element = createElement('card');
       element.__card = this;
-      element.style.backgroundImage = images[this.value];
+      this.setImage(element, this.value);
       this.element = element;
     }
     return this.element;
+  }
+
+  updateValue(value = '') {
+    if (value === this.value) {
+      return;
+    }
+    this.suit = value.substr(0, 1);
+    this.value = value;
+    if (this.element) {
+      const element = this.getElement();
+      this.setImage(element, value);
+      if (element.style.transform) {
+        this.setMessy(true);
+      }
+    }
+  }
+
+  setImage(element, value) {
+    if (value) {
+      element.style.backgroundImage = images[value];
+      element.style.display = '';
+    } else {
+      element.style.display = 'none';
+    }
   }
 
   setMessy(isMessy) {
@@ -980,10 +1049,7 @@ class Card {
     } else {
       const suit = suitNumber[this.suit];
       const number = Number(this.value.substr(1, 2));
-      const x = (2 - ((number + suit) % 5)) / 70;
-      const y = (2 - ((number + suit) % 5)) / 70;
-      const d = (1 - ((number + suit) % 3));
-      element.style.transform = `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) rotate(${d}deg)`;
+      element.style.transform = getFussedTransform(suit + number);
     }
   }
 }
@@ -1013,4 +1079,11 @@ function onDoubleClick(element, singleClick, doubleClick) {
       clicks = 0;
     }
   });
+}
+
+function getFussedTransform(number) {
+  const x = (2 - (number % 5)) / 70;
+  const y = (2 - (number % 5)) / 70;
+  const d = (1 - (number % 3));
+  return `translate(${x.toFixed(3)}em, ${y.toFixed(3)}em) rotate(${d}deg)`;
 }
