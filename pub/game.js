@@ -125,6 +125,16 @@ class Game {
         type: 'draw',
       }));
     });
+
+    deck.addEventListener('returntodeck', (event) => {
+      if (!this.server || !this.isActivePlayer) {
+        return;
+      }
+      this.server.send(JSON.stringify({
+        type: 'returntodeck',
+        data: event.detail.map(card => card.value),
+      }));
+    });
   }
 
   setServer(server) {
@@ -171,6 +181,7 @@ class Game {
   startDrag(createDrag) {
     const surface = this.surface.getElement();
     const hand = this.hand.getElement();
+    const deck = this.deck.getElement();
 
     let drag;
     let offset = {
@@ -182,6 +193,7 @@ class Game {
     const dropzone = {
       surface: surface.getBoundingClientRect(),
       hand: hand.getBoundingClientRect(),
+      deck: deck.getBoundingClientRect(),
       table: this.container.getBoundingClientRect(),
     };
 
@@ -246,6 +258,8 @@ class Game {
       } else if (inArea(dropzone.hand, mouseEvent)) {
         enterArea(hand);
         this.hand.setSortPosition(mouseEvent.pageX - dropzone.hand.x, dropzone.hand.width);
+      } else if (inArea(dropzone.deck, mouseEvent)) {
+        enterArea(deck);
       } else {
         leaveArea();
       }
@@ -254,6 +268,7 @@ class Game {
     const onMouseUp = (mouseEvent) => {
       const inSurface = currentArea === surface;
       const inHand = currentArea === hand;
+      const inDeck = currentArea === deck;
       document.removeEventListener('mouseup', onMouseUp);
       document.removeEventListener('mouseleave', onMouseUp);
       document.removeEventListener('mousemove', onMouseMove);
@@ -272,6 +287,9 @@ class Game {
       }
       if (inHand) {
         this.hand.drop(drag);
+      }
+      if (inDeck) {
+        this.deck.drop(drag);
       }
     };
 
@@ -490,6 +508,7 @@ class Deck {
       count -= 1;
     }
     const element = this.getElement();
+    element.classList.toggle('disabled', deck.count <= 0);
     for (let i = this.count; i > count; i--) {
       element.lastChild.remove();
     }
@@ -500,9 +519,19 @@ class Deck {
     this.count = count;
   }
 
+  drop(drag) {
+    if (drag.turns) {
+      return;
+    }
+    this.getElement()
+      .dispatchEvent(new CustomEvent('returntodeck', {
+        detail: drag.cards
+      }));
+  }
+
   getElement() {
     if (!this.element) {
-      const element = createElement('deck');
+      const element = createElement('deck disabled');
       element.appendChild(this.bottomCard.getElement());
       this.element = element;
       element.addEventListener('click', () => {
