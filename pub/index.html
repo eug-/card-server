@@ -253,20 +253,34 @@
     }
 
     .deck {
-      left: 6em;
+      border-radius: 50%;
+      height: 18em;
+      left: -3.5em;
       position: absolute;
-      top: 1em;
+      top: -4em;
       transform: rotate(75deg);
+      width: 18em;
+    }
+
+    .deck:hover {
+      background: rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+    }
+
+    .is-lurking .deck:hover {
+      background: transparent;
+      cursor: default;
     }
 
     .deck .card {
+      left: 1.4em;
       position: absolute;
+      top: 1.2em;
       transform: rotate(90deg);
-      left: 0.2em;
     }
 
     .deck .card-closed.card {
-      left: 0;
+      left: 1.2em;
     }
 
     .message {
@@ -445,7 +459,7 @@
 
   </style>
 </head>
-<body class="table">
+<body class="table is-lurking">
   <div class="stretchy-hack"></div>
   <div class="message">connecting..</div>
   <div class="welcome dialog">
@@ -497,6 +511,7 @@
 
     socket.addEventListener('close', (event) => {
       table.classList.remove('connected');
+      table.classList.add('is-lurking');
       game.reset();
       clearInterval(heartbeat);
       clearTimeout(reconnectTimeout);
