@@ -86,6 +86,16 @@ class Game {
       }));
     });
 
+    hand.addEventListener('pickup', (event) => {
+      if (!this.server) {
+        return;
+      }
+      this.server.send(JSON.stringify({
+        type: 'pickup',
+        data: event.detail,
+      }));
+    });
+
     menu.addEventListener('undo', () => {
       if (!this.server) {
         return;
@@ -867,7 +877,14 @@ class Hand {
 
   drop(drag) {
     if (drag.turns) {
-      // handle taking cards from table
+      const turnIds = drag.turns.map(turn => turn.id);
+      this.getElement()
+        .dispatchEvent(new CustomEvent('pickup', {
+          detail: {
+            index: this.sortPosition,
+            turnIds,
+          },
+        }));
     } else {
       this.rearrange(drag.cards);
     }

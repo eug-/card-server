@@ -174,15 +174,18 @@ class Game {
     this.sendUpdate();
   }
 
-  pickup(playerId, turnIds = []) {
+  pickup(playerId, turnIds = [], position) {
     if (!this.isActivePlayer(playerId)) {
       return;
     }
     const turns = this.round.filter((turn) => turnIds.includes(turn.id));
     this.round = this.round.filter((turn) => !turnIds.includes(turn.id));
+    const newCards = [];
     for (const turn of turns) {
-      this.players[playerId].hand.push(...turn.cards);
+      newCards.push(...turn.cards);
     }
+    const hand = this.players[playerId].hand;
+    hand.splice(position, 0, ...newCards);
     this.sendUpdate();
   }
 
@@ -450,7 +453,7 @@ wss.on('connection', (socket) => {
         game.deal(message.data);
         return;
       case 'pickup':
-        game.pickup(socket.id, message.data);
+        game.pickup(socket.id, message.data.turnIds, message.data.index);
         return;
       case 'turn':
         const turn = message.data;
