@@ -161,11 +161,16 @@ class Game {
     const hand = this.hand.getElement();
 
     let drag;
+    let offset = {
+      x: 0,
+      y: 0
+    };
     let firstPosition;
     let currentArea;
     const dropzone = {
       surface: surface.getBoundingClientRect(),
       hand: hand.getBoundingClientRect(),
+      table: this.container.getBoundingClientRect(),
     };
 
     const enterArea = (area) => {
@@ -204,23 +209,32 @@ class Game {
             onMouseUp();
             return;
           }
-          this.container.appendChild(drag.getElement());
+          const dragElement = drag.getElement();
+          this.container.appendChild(dragElement);
+          const dragRect = dragElement.getBoundingClientRect();
+          offset = {
+            x: Math.floor(dragRect.width) / 2,
+            y: Math.floor(dragRect.height) / 2
+          };
         } else {
           return;
         }
       }
 
 
-      drag.setPosition(mouseEvent.pageX - 30, mouseEvent.pageY - 50);
+      drag.setPosition(
+        mouseEvent.pageX,
+        mouseEvent.pageY,
+        offset,
+        dropzone.table.width,
+        dropzone.table.height,
+        dropzone.surface.width);
       if (inArea(dropzone.surface, mouseEvent)) {
         enterArea(surface);
-        drag.setRotationForPosition((mouseEvent.pageX - dropzone.surface.x) / dropzone.surface.width);
       } else if (inArea(dropzone.hand, mouseEvent)) {
-        drag.setRotationForPosition();
         enterArea(hand);
         this.hand.setSortPosition(mouseEvent.pageX - dropzone.hand.x, dropzone.hand.width);
       } else {
-        drag.setRotationForPosition();
         leaveArea();
       }
     };
@@ -384,17 +398,27 @@ class Surface {
     const elements = element.getElementsByClassName('selected');
     const turns = [];
     const cards = [];
+    let addTarget = true;
     for (const el of elements) {
+      if (el === dragEvent.target) {
+        addTarget = false;
+      }
       if (el.__turn) {
         const turn = el.__turn;
         turns.push(turn);
-        for (const card of turn.cards) {
-          cards.push(card.clone());
-        }
       }
+    }
+    if (addTarget && dragEvent.target.__turn || dragEvent.target.parentElement.__turn) {
+      turns.push(dragEvent.target.__turn || dragEvent.target.parentElement.__turn);
     }
     if (turns.length <= 0) {
       return;
+    }
+    for (const turn of turns) {
+      for (const card of turn.cards) {
+        cards.push(card.clone());
+      }
+      turn.select(false);
     }
     return new Drag(cards, dragEvent.pageX, dragEvent.pageY, turns);
   }
@@ -718,19 +742,20 @@ class Drag {
     return this.element;
   }
 
-  setRotationForPosition(x) {
-    // TODO: make more fluid.
-    if (x === undefined) {
-      delete this.rotation;
-    } else {
-      this.rotation = `rotate(${-(30 - x * 60)}deg)`;
+  setPosition(x, y, offset, width, height, surfaceWidth) {
+    const MAX_ROTATION = 50 * (width / surfaceWidth);
+    const xPad = (width - surfaceWidth) / 2;
+    const yPad = Math.floor(height * .5);
+    const pivot = x / width;
+    const maxDeg = (pivot * MAX_ROTATION) - (MAX_ROTATION / 2);
+    let damper = 1;
+    if (y > yPad) {
+      damper -= (y - yPad) / (height - yPad);
     }
-  }
-
-  setPosition(x, y) {
-    const element = this.getElement();
-    const transform = `translate(${x}px, ${y}px) ${this.rotation ? this.rotation : ''}`;
-    element.style.transform = transform;
+    const deg = maxDeg * damper;
+    const transform = `translate(${x - offset.x}px, ${y - offset.y}px) rotate(${deg}deg)`;
+    this.getElement()
+      .style.transform = transform;
   }
 
   getMessage(surfaceX, surfaceY) {
