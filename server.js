@@ -56,6 +56,16 @@ class Game {
     this.sendUpdate();
   }
 
+  returnToDeck(playerId, cards) {
+    const player = this.players[playerId];
+    if (!player || !this.isActivePlayer(playerId)) {
+      return;
+    }
+    const playableCards = player.playCards(cards);
+    this.deck.returnCards(playableCards);
+    this.sendUpdate();
+  }
+
   moveTurn(playerId, turnId, x, y) {
     const player = this.players[playerId];
     if (!player || !this.isActivePlayer(playerId)) {
@@ -287,6 +297,15 @@ class Deck {
     return this.cards.splice(-count, count);
   }
 
+  returnCards(cards) {
+    for (const card of cards) {
+      this.cards.splice(
+        (Math.max(1, Math.min(this.cards.length * Math.random()))),
+        0,
+        card);
+    }
+  }
+
   getPayload() {
     const payload = {
       count: this.cards.length
@@ -399,6 +418,7 @@ const fullLogMessageTypes = {
   pickup: true,
   rearrange: false,
   rearrangesurface: true,
+  returntodeck: false,
   newround: true,
 };
 
@@ -465,6 +485,9 @@ wss.on('connection', (socket) => {
       case 'rearrangesurface':
         const moveTurn = message.data;
         game.moveTurn(socket.id, moveTurn.turnId, moveTurn.x, moveTurn.y);
+        return;
+      case 'returntodeck':
+        game.returnToDeck(socket.id, message.data);
         return;
       case 'newround':
         game.newRound();
