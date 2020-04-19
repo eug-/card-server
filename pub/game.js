@@ -16,7 +16,7 @@ for (const suit in suitNumber) {
   }
 }
 
-const MIN_DRAG_DISTANCE = 30;
+const MIN_DRAG_DISTANCE = 80;
 const MAX_ACTIVE_PLAYERS = 4;
 const LOCAL_PLAYER = MAX_ACTIVE_PLAYERS - 1;
 const GHOST_OPPONENT = 'ghost_opponent';
@@ -351,6 +351,10 @@ class Menu {
 
       const dealMenu = createElement('dialog deal-menu hidden', this.container);
       this.createDealOption(13, dealMenu, element);
+      this.createDealOption(10, dealMenu, element);
+      this.createDealOption(7, dealMenu, element);
+      this.createDealOption(6, dealMenu, element);
+      this.createDealOption(5, dealMenu, element);
       this.createDealOption('д', dealMenu, element);
       const cancelButton = createElement('dialog-button', dealMenu);
       cancelButton.innerText = 'Cancel';
@@ -508,7 +512,7 @@ class Deck {
       count -= 1;
     }
     const element = this.getElement();
-    element.classList.toggle('disabled', deck.count <= 0);
+    element.classList.toggle('disabled', count <= 0);
     for (let i = this.count; i > count; i--) {
       element.lastChild.remove();
     }
@@ -741,7 +745,7 @@ class Opponent {
     this.id = id;
     let label = name;
     if (id) {
-      label = id === GHOST_OPPONENT ? '(empty seat)' : `(${name}'s empty seat)`;
+      label = '';
     }
     this.getElement(); // Create element.
     this.nameElement.innerText = label;

@@ -13,8 +13,7 @@
     }
 
     .table {
-      background: rgb(23,133,18);
-      background: linear-gradient(180deg, rgb(23,133,18) 0%, rgb(20,128,15) 100%);
+      background: rgb(13,103,8);
       position: relative;
       text-align: center;
       user-select: none;
@@ -28,11 +27,13 @@
       top: 48%;
       transform: translate(-50%, -50%);
       width: 30em;
+      transition: background-color 0.1s ease;
+      border-radius: 2em;
     }
 
-    .surface.dropzone {
-      background: rgba(255,255,255,0.2);
-      border-radius: 2em;
+    .deck:hover, .table .dropzone {
+      background: rgb(28,138,23);
+      cursor: pointer;
     }
 
     .surface .turn.selected {
@@ -87,18 +88,23 @@
       position: relative;
       vertical-align: bottom;
       bottom: -1.2em;
+      height: 6em;
+      min-width: 10em;
+      padding: 1.2em 3.2em;
+      border-radius: 1.2em;
+      transition: background-color 0.1s ease;
     }
 
     .hand .card {
-      font-size: 6em;
-      margin: 2px;
+      font-size: 8em;
+      margin: 0 -.2em;
       box-shadow: 0 1px 1px 2px rgba(0,0,0,0.1);
     }
 
     .hand .name {
-      bottom: 8.5em;
+      top: 0.2em;
       color: #84af82;
-      font-size: .8em;
+      font-size: 0.8em;
       left: 50%;
       position: absolute;
       transform: translateX(-50%);
@@ -111,13 +117,12 @@
     }
 
     .sort-indicator {
-      background: yellow;
-      bottom: -2em;
+      border-left: 5px dotted yellow;
       display: none;
-      height: 8em;
-      margin: 2px;
+      height: 6em;
+      margin: 0 2.4em;
       position: relative;
-      width: 8px;
+      top: -2.6em;
     }
 
     .dropzone .sort-indicator {
@@ -140,33 +145,33 @@
 
     .opponent {
       box-sizing: border-box;
-      padding-right: .55em;
       position: absolute;
       text-align: center;
+      height: 5em;
     }
 
     .opponent.p0  {
-      left: .25em;
+      left: 0;
       top: 50%;
-      transform: translateX(-80%) rotate(-90deg);
+      transform: translate(-50%, -50%) rotate(-90deg);
     }
 
     .opponent.p1{
       left: 50%;
-      top: .25em;
-      transform: translate(-50%, -70%);
+      top: 0;
+      transform: translate(-50%, -50%);
     }
 
     .opponent.p2 {
-      right: .25em;
+      right: 0;
       top: 50%;
-      transform: translateX(80%) rotate(90deg);
+      transform: translate(50%, -50%) rotate(90deg);
     }
 
     .opponent.p3 {
-      bottom: .25em;
+      bottom: 0;
       left: 50%;
-      transform: translate(-50%, 40%) rotate(180deg);
+      transform: translate(-50%, 50%) rotate(180deg);
     }
 
     .opponent.ghost {
@@ -197,14 +202,19 @@
     }
 
     .is-lurking .opponent .name.can-sit::after {
-      color: #ccc;
+      background: rgb(192,192,192);
+      box-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+      color: #222;
       content: 'sit';
-      display: block;
+      display: inline-block;
       font-weight: bold;
-      margin: 0 .3em;
+      line-height: 1;
+      margin: .5em;
+      padding: .25em .5em;
+      border-radius: .2em;
     }
     .is-lurking .opponent .name.can-sit:hover::after {
-      color: #fff;
+      background: rgb(219, 219, 219);
     }
 
     .turn {
@@ -254,17 +264,13 @@
 
     .deck {
       border-radius: 50%;
-      height: 18em;
-      left: -3.5em;
+      height: 14em;
+      left: -4em;
       position: absolute;
       top: -4em;
-      transform: rotate(75deg);
-      width: 18em;
-    }
-
-    .deck:hover, .deck.dropzone {
-      background: rgba(255, 255, 255, 0.2);
-      cursor: pointer;
+      transform: rotate(55deg);
+      width: 14em;
+      transition: background-color 0.1s ease;
     }
 
     .is-lurking .deck:hover, .deck.disabled:hover {
@@ -273,9 +279,9 @@
     }
 
     .deck .card {
-      left: 1.4em;
+      left: 1.1em;
       position: absolute;
-      top: 1.2em;
+      top: 0.9em;
       transform: rotate(90deg);
     }
 
@@ -546,8 +552,8 @@
 
   function updateScale() {
     let size = Math.min(
-      Math.round((window.innerWidth / 80)),
-      Math.round((window.innerHeight / 40)));
+      Math.round(window.innerWidth / 50),
+      Math.round(window.innerHeight / 50));
     if (size % 2) {
       size += 1;
     }
