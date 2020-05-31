@@ -16,7 +16,7 @@ for (const suit in suitNumber) {
   }
 }
 
-const MIN_DRAG_DISTANCE = 80;
+const MIN_DRAG_DISTANCE = 2;
 const MAX_ACTIVE_PLAYERS = 4;
 const LOCAL_PLAYER = MAX_ACTIVE_PLAYERS - 1;
 const GHOST_OPPONENT = 'ghost_opponent';
